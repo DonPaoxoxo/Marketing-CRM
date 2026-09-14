@@ -1,0 +1,75 @@
+name: Bug report
+description: Something is not working as expected.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug. **Do not include passwords, API keys, `.env` contents, invite links or real personal data.**
+        For security vulnerabilities, use the private "Report a vulnerability" option in the Security tab instead.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the problem, including any error message shown.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      placeholder: |
+        1. Go to …
+        2. Click …
+        3. See …
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - Dashboard
+        - SIMs & Numbers
+        - Agents
+        - Social Accounts
+        - Domains
+        - Reserve Inventory
+        - Growth
+        - Ads Monitoring
+        - Shared Spiel Library / AI Assistant
+        - Team Reports
+        - Assignments
+        - Credential Refs
+        - Reports / Import / Export
+        - Roles & Audit / sign-in
+        - Deployment / setup
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: Role you were signed in as
+      options:
+        - System Administrator
+        - Marketing Manager
+        - Marketing Staff
+        - Read-only Reviewer
+        - Mock preview (no sign-in)
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: Browser and version, OS, Node version, commit or release
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or screenshots
+      description: Redact any personal data or secrets before pasting.

@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- Content-Security-Policy.
+         A meta policy is the floor, not the ceiling: `frame-ancestors` and
+         `report-to` are ignored here and must be sent as response headers. The
+         full recommended header set is in DEVELOPER-HANDOVER.md.
+         `object-src 'none'` and `base-uri 'none'` are the two that matter most
+         and cost nothing: they block plugin embedding and <base> tag injection. -->
+    <meta http-equiv="Content-Security-Policy" content="
+      default-src 'self';
+      img-src 'self' data: blob:;
+      font-src 'self' data:;
+      style-src 'self' 'unsafe-inline';
+      connect-src 'self' ws: wss:;
+      object-src 'none';
+      base-uri 'none';
+      form-action 'self';
+    " />
+
+    <!-- Internal tool. Keep out of every public index.
+         Crawler directives are a hint, not access control — production must sit
+         behind authentication. See DEVELOPER-HANDOVER.md. -->
+    <meta name="robots" content="noindex, nofollow, noarchive, nosnippet, noimageindex" />
+    <meta name="googlebot" content="noindex, nofollow" />
+    <meta name="referrer" content="same-origin" />
+
+    <title>Marketing Resource CRM</title>
+    <meta name="description" content="Internal workspace for marketing SIMs, agents, social accounts, domains and resource allocation." />
+  </head>
+  <body>
+    <div id="root"></div>
+    <noscript>This internal workspace requires JavaScript.</noscript>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

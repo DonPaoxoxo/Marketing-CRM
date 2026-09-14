@@ -1,0 +1,5 @@
+User-agent: *
+Disallow: /
+
+# Internal marketing resource CRM. No public routes, no sitemap.
+# Crawler directives are not access control; production requires authentication.

@@ -41,6 +41,7 @@ export function GlobalSearch() {
         socialAccounts: data.socialAccounts,
         agents: data.agents,
         domains: data.domains,
+        pakistanCompetitors: data.pakistanCompetitors,
         brands: data.brands,
         pages: ALL_NAV_ITEMS.filter((n) => !n.permission || can(n.permission)).map((n) => ({ to: n.to, label: n.label, description: n.description })),
       },

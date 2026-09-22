@@ -7,6 +7,7 @@ const corpus: SearchCorpus = {
   socialAccounts: seed.socialAccounts,
   agents: seed.agents,
   domains: seed.domains,
+  pakistanCompetitors: seed.pakistanCompetitors,
   brands: seed.brands,
   pages: [{ to: '/domains', label: 'Domains', description: 'Domain register' }],
 };

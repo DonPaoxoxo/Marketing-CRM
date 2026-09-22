@@ -10,10 +10,10 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { execute, query, queryOne } from '../db/pool';
 import {
-  mapAccount, mapAgent, mapAssignment, mapContentPost, mapCredential, mapDomain, mapSim, mapSnapshot,
+  mapAccount, mapAgent, mapAssignment, mapCompetitor, mapContentPost, mapCredential, mapDomain, mapSim, mapSnapshot,
 } from './mappers';
 import type {
-  Agent, Assignment, ContentPost, CredentialRef, DomainRecord, FollowerSnapshot, Sim, SocialAccount,
+  Agent, Assignment, CompetitorRecord, ContentPost, CredentialRef, DomainRecord, FollowerSnapshot, Sim, SocialAccount,
 } from '../../src/lib/types';
 
 export * from './statements';
@@ -112,6 +112,11 @@ export async function readAssignment(id: string, conn?: PoolConnection): Promise
 export async function readDomain(id: string, conn?: PoolConnection): Promise<DomainRecord | null> {
   const row = await one(id, 'domains', conn);
   return row ? mapDomain(row) : null;
+}
+
+export async function readCompetitor(id: string, conn?: PoolConnection): Promise<CompetitorRecord | null> {
+  const row = await one(id, 'pakistan_competitors', conn);
+  return row ? mapCompetitor(row) : null;
 }
 
 export async function readContentPost(id: string, conn?: PoolConnection): Promise<ContentPost | null> {

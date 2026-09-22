@@ -1,5 +1,5 @@
 import {
-  Building2, ClipboardList, FileBarChart, Globe, KeyRound, LayoutDashboard,
+  Building2, ClipboardList, FileBarChart, Flag, Globe, KeyRound, LayoutDashboard,
   Megaphone, MessagesSquare, NotebookPen, PackageSearch, Share2, ShieldCheck, Smartphone, TrendingUp, Upload, Users,
 } from 'lucide-react';
 import type { Permission } from '@/lib/types';
@@ -39,6 +39,7 @@ export const NAV: NavGroup[] = [
     label: 'Operations',
     items: [
       { to: '/growth', label: 'Growth', icon: TrendingUp, description: 'Daily followers and content engagement' },
+      { to: '/pakistan-competitors', label: 'Pakistan Competitor', icon: Flag, description: 'Competitor presence and contact points, Pakistan market' },
       { to: '/ads-monitoring', label: 'Ads Monitoring', icon: Megaphone, description: 'Ad campaigns, daily performance, creatives and trends' },
       { to: '/shared-spiel', label: 'Shared Spiel Library', icon: MessagesSquare, description: 'Approved communication scripts, references and the AI Assistant Learner' },
       { to: '/team-reports', label: 'Team Reports', icon: NotebookPen, description: 'Daily, weekly and monthly work reports' },

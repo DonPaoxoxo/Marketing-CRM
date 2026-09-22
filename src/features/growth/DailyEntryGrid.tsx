@@ -3,18 +3,24 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { CalendarDays, Check, Save } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
-import { Badge, Input, Label, Skeleton } from '@/components/ui/primitives';
+import { Badge, Input, Label, NativeSelect, Skeleton } from '@/components/ui/primitives';
 import { EmptyState, SafeExternalLink, SectionCard } from '@/components/common/bits';
 import { SearchInput } from '@/components/common/controls';
-import { BOOTSTRAP_KEY, ApiError, useActorQuery, useCrmData, withActor } from '@/hooks/useData';
+import { BOOTSTRAP_KEY, ApiError, useActorQuery, useCrmData, useUpdate, withActor } from '@/hooks/useData';
 import { useSession } from '@/hooks/useSession';
 import { latestSnapshot, trackableAccounts } from '@/lib/growth';
+import type { SocialAccount } from '@/lib/types';
 import { displayUrl, formatDate, toISODate } from '@/lib/utils';
 import { cn } from '@/lib/cn';
 
 interface Draft {
   [accountId: string]: string;
 }
+
+/** The market an account is sorted under. Editable here so the team can tag
+ *  an account without a trip to its own record — restricted to the three
+ *  markets Growth tracks, even though the underlying field allows any country. */
+const SORT_MARKETS = ['Pakistan', 'India', 'Indonesia'] as const;
 
 /**
  * The daily routine: pick a date, type down the column, save once.
@@ -29,6 +35,14 @@ export function DailyEntryGrid() {
   const actorQuery = useActorQuery();
   const qc = useQueryClient();
   const mayEdit = can('edit:resources');
+  const updateSort = useUpdate<SocialAccount>('social-accounts', 'Account');
+
+  const sortOptions = React.useMemo(
+    () => (data?.countries ?? [])
+      .filter((c) => (SORT_MARKETS as readonly string[]).includes(c.name))
+      .sort((a, b) => SORT_MARKETS.indexOf(a.name as typeof SORT_MARKETS[number]) - SORT_MARKETS.indexOf(b.name as typeof SORT_MARKETS[number])),
+    [data],
+  );
 
   const today = toISODate(new Date());
   const [date, setDate] = React.useState(today);
@@ -155,10 +169,10 @@ export function DailyEntryGrid() {
             <caption className="sr-only">Daily follower totals for {formatDate(date)}</caption>
             <thead className="bg-surface-2">
               <tr>
-                {['Account', 'Platform', 'Profile URL', 'Previous total', `Total on ${formatDate(date)}`, 'Gain'].map((h, i) => (
+                {['Account', 'Platform', 'Sort', 'Profile URL', 'Previous total', `Total on ${formatDate(date)}`, 'Gain'].map((h, i) => (
                   <th key={h} scope="col" className={cn(
                     'border-b border-border px-3 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground',
-                    i > 2 ? 'text-right' : 'text-left',
+                    i > 3 ? 'text-right' : 'text-left',
                   )}>
                     {h}
                   </th>
@@ -180,6 +194,23 @@ export function DailyEntryGrid() {
                       <span className="block text-[11px] text-muted-foreground">{lookups.brandName(account.brandId)}</span>
                     </td>
                     <td className="px-3 py-2 text-[13px]">{lookups.platformName(account.platformId)}</td>
+                    <td className="px-3 py-2">
+                      <Label htmlFor={`sort-${account.id}`} className="sr-only">
+                        Sort market for @{account.username}
+                      </Label>
+                      <NativeSelect
+                        id={`sort-${account.id}`}
+                        value={sortOptions.some((o) => o.code === account.targetCountryCode) ? account.targetCountryCode : ''}
+                        disabled={!mayEdit}
+                        onChange={(e) => updateSort.mutate({
+                          id: account.id, targetCountryCode: e.target.value, reason: 'Sort updated from Daily entry',
+                        })}
+                        className="w-32"
+                      >
+                        {!sortOptions.some((o) => o.code === account.targetCountryCode) && <option value="">—</option>}
+                        {sortOptions.map((o) => <option key={o.code} value={o.code}>{o.name}</option>)}
+                      </NativeSelect>
+                    </td>
                     <td className="max-w-[18rem] px-3 py-2 text-[13px]">
                       {account.profileUrl.trim() ? (
                         // Opens the real page in a new tab, to read the count from.

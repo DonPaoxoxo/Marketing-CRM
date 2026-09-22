@@ -160,6 +160,16 @@ export const CONTENT_POST_COLUMNS: ColumnMap = {
   archived: 'archived',
 };
 
+export const COMPETITOR_COLUMNS: ColumnMap = {
+  platformId: 'platform_id',
+  linkOrDomain: 'link_domain',
+  whatsapp: 'whatsapp',
+  telegram: 'telegram',
+  others: 'others',
+  notes: 'notes',
+  archived: 'archived',
+};
+
 /* ── Statement building ───────────────────────────────────────── */
 
 function coerce(value: unknown, spec: ColumnSpec): unknown {

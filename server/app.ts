@@ -16,6 +16,7 @@ import { simsRouter } from './routes/sims';
 import { agentsRouter } from './routes/agents';
 import { socialAccountsRouter } from './routes/social-accounts';
 import { domainsRouter } from './routes/domains';
+import { pakistanCompetitorsRouter } from './routes/pakistan-competitors';
 import { assignmentsRouter } from './routes/assignments';
 import { credentialsRouter } from './routes/credentials';
 import { growthRouter } from './routes/growth';
@@ -128,6 +129,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api', agentProofsRouter);
   app.use('/api/social-accounts', socialAccountsRouter);
   app.use('/api/domains', domainsRouter);
+  app.use('/api/pakistan-competitors', pakistanCompetitorsRouter);
   app.use('/api/assignments', assignmentsRouter);
   app.use('/api/credentials', credentialsRouter);
   app.use('/api/import', importRouter);

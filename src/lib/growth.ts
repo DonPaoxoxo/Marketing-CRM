@@ -5,7 +5,7 @@
  *  and the charts all derive their figures the same way and cannot disagree. */
 
 import type { ContentPost, FollowerSnapshot, SocialAccount } from './types';
-import { daysSince, toISODate } from './utils';
+import { parseISO, toISODate } from './utils';
 
 /* ── Configurable thresholds ──────────────────────────────────── */
 
@@ -107,6 +107,15 @@ export function growthSummary(
   const thresholds = options.thresholds ?? DEFAULT_GROWTH_THRESHOLDS;
   const windowDays = options.windowDays ?? thresholds.windowDays;
   const today = options.today ?? new Date();
+  // Against the same `today` as the window/cutoff below, not the real clock —
+  // otherwise a fixed `today` passed in for a test or a re-run stops matching
+  // "stale" against the date it was actually computed for.
+  const daysSince = (s: string): number => {
+    const d = parseISO(s)!;
+    const a = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
+    const b = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate());
+    return Math.round((a - b) / 86_400_000);
+  };
 
   const points = snapshotSeries(snapshots, accountId);
   const latest = points.length ? points[points.length - 1] : null;
@@ -127,7 +136,7 @@ export function growthSummary(
     averagePerDay: null,
     trend: 'insufficient-data',
     tracked: latest !== null,
-    trackingStale: latest !== null && (daysSince(latest.date) ?? 0) > thresholds.staleTrackingDays,
+    trackingStale: latest !== null && daysSince(latest.date) > thresholds.staleTrackingDays,
     daysSinceLastEntry: latest ? daysSince(latest.date) : null,
   };
 

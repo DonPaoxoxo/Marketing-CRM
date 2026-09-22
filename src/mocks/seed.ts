@@ -14,7 +14,7 @@
  *  the test suite. */
 
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, ContentPost, Country, CredentialRef, DomainRecord,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
   FollowerSnapshot, Platform, Project, Sim, SocialAccount, TeamMember,
 } from '../lib/types';
 
@@ -52,4 +52,5 @@ export const domains: DomainRecord[] = [];
 export const followerSnapshots: FollowerSnapshot[] = [];
 export const contentPosts: ContentPost[] = [];
 export const agentProofs: AgentProof[] = [];
+export const pakistanCompetitors: CompetitorRecord[] = [];
 export const auditEntries: AuditEntry[] = [];

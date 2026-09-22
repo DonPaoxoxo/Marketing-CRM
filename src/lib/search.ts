@@ -3,12 +3,12 @@
  *  Extracted from the global-search component so the matching rules are testable
  *  on their own — they are easy to get subtly wrong (see the digit-guard below). */
 
-import type { Agent, Brand, DomainRecord, Sim, SocialAccount } from './types';
+import type { Agent, Brand, CompetitorRecord, DomainRecord, Sim, SocialAccount } from './types';
 import { maskPhone, normalizePhone } from './utils';
 
 export interface SearchHit {
   id: string;
-  group: 'SIMs' | 'Social accounts' | 'Agents' | 'Domains' | 'Brands' | 'Pages';
+  group: 'SIMs' | 'Social accounts' | 'Agents' | 'Domains' | 'Pakistan Competitors' | 'Brands' | 'Pages';
   title: string;
   subtitle: string;
   to: string;
@@ -19,6 +19,7 @@ export interface SearchCorpus {
   socialAccounts: SocialAccount[];
   agents: Agent[];
   domains: DomainRecord[];
+  pakistanCompetitors: CompetitorRecord[];
   brands: Brand[];
   pages: { to: string; label: string; description: string }[];
 }
@@ -99,6 +100,18 @@ export function searchRecords(
         title: d.domainName,
         subtitle: `${d.id} · ${d.targetCountry} · ${d.status}`,
         to: `/domains?search=${encodeURIComponent(d.domainName)}`,
+      });
+    }
+  });
+
+  corpus.pakistanCompetitors.forEach((c) => {
+    if (has(c.id) || has(c.linkOrDomain) || has(c.whatsapp) || has(c.telegram)) {
+      hit({
+        id: c.id,
+        group: 'Pakistan Competitors',
+        title: c.linkOrDomain,
+        subtitle: `${c.id} · ${lookups.platformName(c.platformId)}`,
+        to: `/pakistan-competitors?search=${encodeURIComponent(c.linkOrDomain)}`,
       });
     }
   });

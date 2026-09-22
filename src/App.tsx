@@ -18,6 +18,7 @@ import AccountsPage from '@/routes/Accounts';
 import AccountDetailPage from '@/routes/AccountDetail';
 import DomainsPage from '@/routes/Domains';
 import GrowthPage from '@/routes/Growth';
+import PakistanCompetitorsPage from '@/routes/PakistanCompetitors';
 import ReservesPage from '@/routes/Reserves';
 import AssignmentsPage from '@/routes/Assignments';
 import CredentialsPage from '@/routes/Credentials';
@@ -86,6 +87,7 @@ export function App() {
                   <Route path="accounts/:id" element={<AccountDetailPage />} />
                   <Route path="domains" element={<RequirePermission permission="access:domains"><DomainsPage /></RequirePermission>} />
                   <Route path="growth" element={<GrowthPage />} />
+                  <Route path="pakistan-competitors" element={<PakistanCompetitorsPage />} />
                   <Route path="ads-monitoring" element={<AdsMonitoringPage />} />
                   <Route path="ads-monitoring/:campaignId" element={<AdsCampaignDetailPage />} />
                   <Route path="reserves" element={<ReservesPage />} />

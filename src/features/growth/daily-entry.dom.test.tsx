@@ -59,7 +59,7 @@ describe('daily follower entry — Profile URL column', () => {
     const { container } = mount();
     await waitFor(() => expect(document.getElementById(`count-${pageIds[0]}`)).toBeTruthy(), { timeout: 5000 });
 
-    expect(headers().slice(0, 3)).toEqual(['Account', 'Platform', 'Profile URL']);
+    expect(headers().slice(0, 4)).toEqual(['Account', 'Platform', 'Sort', 'Profile URL']);
 
     const link = rowOf(pageIds[0]).querySelector('a')!;
     expect(link.textContent).toBe('facebook.com/xBrightgamers');

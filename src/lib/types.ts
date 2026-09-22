@@ -233,6 +233,21 @@ export interface DomainRecord {
   updatedAt: string;
 }
 
+/** A competitor's presence on one platform, tracked for the Pakistan market —
+ *  where to find them and how to reach them, not performance figures. */
+export interface CompetitorRecord {
+  id: ID;                       // CMP-0001
+  platformId: ID;               // FK -> Platform
+  linkOrDomain: string;         // profile link or bare domain
+  whatsapp: string;
+  telegram: string;
+  others: string;
+  notes: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** One observed follower total for one account on one day.
  *
  *  The *total* is recorded, never the gain — gain is derived against the previous
@@ -362,6 +377,7 @@ export interface Bootstrap {
   followerSnapshots: FollowerSnapshot[];
   contentPosts: ContentPost[];
   agentProofs: AgentProof[];
+  pakistanCompetitors: CompetitorRecord[];
   auditEntries: AuditEntry[];
 }
 

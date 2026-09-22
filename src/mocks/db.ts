@@ -6,7 +6,7 @@
 import * as seed from './seed';
 import * as fixtures from './fixtures';
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, ContentPost, Country, CredentialRef, DomainRecord,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
   FollowerSnapshot, Platform, Project, RoleName, Sim, SocialAccount, TeamMember,
 } from '@/lib/types';
 
@@ -25,6 +25,7 @@ export interface Database {
   followerSnapshots: FollowerSnapshot[];
   contentPosts: ContentPost[];
   agentProofs: AgentProof[];
+  pakistanCompetitors: CompetitorRecord[];
   /** Proof images by proof id, as data: URLs. Memory only. */
   proofImages: Record<string, { mime: string; base64: string }>;
   auditEntries: AuditEntry[];
@@ -50,6 +51,7 @@ function snapshotOf(source: typeof seed | typeof fixtures): Database {
     followerSnapshots: source.followerSnapshots,
     contentPosts: source.contentPosts,
     agentProofs: source.agentProofs,
+    pakistanCompetitors: source.pakistanCompetitors,
     proofImages: {},
     auditEntries: source.auditEntries,
   });

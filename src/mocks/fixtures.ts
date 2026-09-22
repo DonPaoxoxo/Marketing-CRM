@@ -10,7 +10,7 @@
  *  credentials. Vault references point nowhere. */
 
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, ContentPost, Country, CredentialRef, DomainRecord,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
   FollowerSnapshot, Platform, Project, Sim, SocialAccount, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
@@ -445,6 +445,29 @@ export const domains: DomainRecord[] = DOMAIN_STEMS.flatMap((stem, i) => {
 /* ── Audit trail ──────────────────────────────────────────────── */
 
 export const agentProofs: AgentProof[] = [];
+
+/* ── Pakistan Competitor register ────────────────────────────────── */
+
+const COMPETITOR_SEED: { platform: string; link: string; whatsapp: string; telegram: string; others: string }[] = [
+  { platform: 'PLT-01', link: 'https://facebook.com/rivalrewardspk', whatsapp: '+92 300 1234567', telegram: '', others: '' },
+  { platform: 'PLT-03', link: 'tiktok.com/@pk.dealzone', whatsapp: '', telegram: '@dealzonepk', others: '' },
+  { platform: 'PLT-06', link: 't.me/PKBonusHub', whatsapp: '', telegram: '@PKBonusHub', others: 'Second channel: t.me/PKBonusHubVIP' },
+  { platform: 'PLT-04', link: 'https://youtube.com/@pk.rewardsdaily', whatsapp: '+92 301 7654321', telegram: '', others: '' },
+  { platform: 'PLT-07', link: 'https://wa.me/923219876543', whatsapp: '+92 321 9876543', telegram: '', others: '' },
+];
+
+export const pakistanCompetitors: CompetitorRecord[] = COMPETITOR_SEED.map((c, i) => ({
+  id: `CMP-${pad(i + 1)}`,
+  platformId: c.platform,
+  linkOrDomain: c.link,
+  whatsapp: c.whatsapp,
+  telegram: c.telegram,
+  others: c.others,
+  notes: '',
+  archived: false,
+  createdAt: stamp(-int(5, 60)),
+  updatedAt: stamp(-int(0, 5)),
+}));
 
 export const auditEntries: AuditEntry[] = [
   ...assignments.slice(0, 25).map((a, i) => ({

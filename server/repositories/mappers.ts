@@ -7,7 +7,7 @@
 
 import type { RowDataPacket } from 'mysql2/promise';
 import type {
-  Agent, Assignment, AuditEntry, Brand, ContentPost, Country, CredentialRef, DomainRecord,
+  Agent, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
   FollowerSnapshot, Platform, Project, Sim, SocialAccount, TeamMember,
 } from '../../src/lib/types';
 
@@ -240,6 +240,19 @@ export const mapDomain = (r: RowDataPacket): DomainRecord => ({
   category: text(r.category),
   nameservers: text(r.nameservers),
   brandId: id(r.brand_id),
+  notes: text(r.notes),
+  archived: bool(r.archived),
+  createdAt: isoRequired(r.created_at),
+  updatedAt: isoRequired(r.updated_at),
+});
+
+export const mapCompetitor = (r: RowDataPacket): CompetitorRecord => ({
+  id: String(r.id),
+  platformId: String(r.platform_id),
+  linkOrDomain: text(r.link_domain),
+  whatsapp: text(r.whatsapp),
+  telegram: text(r.telegram),
+  others: text(r.others),
   notes: text(r.notes),
   archived: bool(r.archived),
   createdAt: isoRequired(r.created_at),

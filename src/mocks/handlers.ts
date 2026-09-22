@@ -6,7 +6,7 @@ import { HttpResponse, http, delay } from 'msw';
 import { db, diffRecords, nextId, recordAudit } from './db';
 import { ROLES } from '@/lib/types';
 import type {
-  AgentProof, Agent, Assignment, AuditEntry, ContentPost, CredentialRef, DomainRecord, FollowerSnapshot,
+  AgentProof, Agent, Assignment, AuditEntry, CompetitorRecord, ContentPost, CredentialRef, DomainRecord, FollowerSnapshot,
   RoleName, Sim, SocialAccount, TeamMember,
 } from '@/lib/types';
 import { checkAssignmentConflict } from '@/lib/rules';
@@ -24,7 +24,7 @@ import { checkSimExtras, simRawFromRecord, takenBySims, validateSimRow, noneTake
 import { emailKey, telegramKey } from '@/lib/identity';
 import { normalizeDomain, normalizePhone } from '@/lib/utils';
 import {
-  ACCOUNT_FIELDS, AGENT_FIELDS, ASSIGNMENT_FIELDS, CONTENT_POST_FIELDS, CREDENTIAL_FIELDS,
+  ACCOUNT_FIELDS, AGENT_FIELDS, ASSIGNMENT_FIELDS, COMPETITOR_FIELDS, CONTENT_POST_FIELDS, CREDENTIAL_FIELDS,
   DOMAIN_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, sanitizeFields, sanitizeText, sanitizeUrl,
 } from '@/lib/sanitize';
 
@@ -148,6 +148,7 @@ export const handlers = [
       followerSnapshots: db.followerSnapshots,
       contentPosts: db.contentPosts,
       agentProofs: db.agentProofs,
+      pakistanCompetitors: db.pakistanCompetitors,
       auditEntries: db.auditEntries,
     });
   }),
@@ -635,6 +636,73 @@ export const handlers = [
         recordLabel: rec.domainName,
         action: rotationChanged ? 'rotation' : statusChanged || restoring ? 'status-change' : patch.archived ? 'archive' : 'update',
         reason: reason ?? 'Domain record updated',
+        changes,
+      });
+    }
+    return HttpResponse.json(rec);
+  }),
+
+  /* ── Pakistan Competitor register ────────────────────────── */
+  http.post(`${API}/pakistan-competitors`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'edit:resources')) return noAccess();
+    const body = sanitizeFields((await request.json()) as Partial<CompetitorRecord> & { reason?: string }, COMPETITOR_FIELDS);
+    const linkOrDomain = (body.linkOrDomain ?? '').trim();
+    if (!linkOrDomain) return bad('A link or domain is required.', 400, { field: 'linkOrDomain' });
+    const platformId = body.platformId ?? '';
+    if (!platformId) return bad('Select a platform.', 400, { field: 'platformId' });
+    const rec: CompetitorRecord = {
+      id: nextId('CMP', db.pakistanCompetitors),
+      platformId,
+      linkOrDomain,
+      whatsapp: body.whatsapp ?? '',
+      telegram: body.telegram ?? '',
+      others: body.others ?? '',
+      notes: body.notes ?? '',
+      archived: false,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    db.pakistanCompetitors.unshift(rec);
+    recordAudit({
+      actor: actor(request),
+      recordType: 'Pakistan Competitor',
+      recordId: rec.id,
+      recordLabel: rec.linkOrDomain,
+      action: 'create',
+      reason: body.reason ?? 'Competitor added to register',
+      changes: [{ field: 'linkOrDomain', from: null, to: rec.linkOrDomain }],
+    });
+    return HttpResponse.json(rec, { status: 201 });
+  }),
+
+  http.patch(`${API}/pakistan-competitors/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'edit:resources')) return noAccess();
+    const rec = db.pakistanCompetitors.find((c) => c.id === params.id);
+    if (!rec) return bad('Competitor not found.', 404);
+    const wasArchived = rec.archived;
+    const body = sanitizeFields((await request.json()) as Partial<CompetitorRecord> & { reason?: string }, COMPETITOR_FIELDS);
+    const restoring = body.archived === false && wasArchived;
+    if ((body.archived === true && !wasArchived) || restoring) {
+      if (!may(request, 'archive:records')) return bad(`Your role (${actor(request).role}) cannot ${restoring ? 'restore' : 'archive'} records.`, 403);
+      if (!body.reason?.trim()) return bad(`${restoring ? 'Restoring' : 'Archiving'} needs a written reason.`, 400, { field: 'reason' });
+    }
+    if (body.linkOrDomain !== undefined) {
+      body.linkOrDomain = body.linkOrDomain.trim();
+      if (!body.linkOrDomain) return bad('A link or domain is required.', 400, { field: 'linkOrDomain' });
+    }
+    const { reason, ...patch } = body;
+    const changes = diffRecords(rec as unknown as Record<string, unknown>, patch as Record<string, unknown>);
+    Object.assign(rec, patch, { updatedAt: now() });
+    if (changes.length) {
+      recordAudit({
+        actor: actor(request),
+        recordType: 'Pakistan Competitor',
+        recordId: rec.id,
+        recordLabel: rec.linkOrDomain,
+        action: restoring ? 'restore' : patch.archived ? 'archive' : 'update',
+        reason: reason ?? 'Competitor record updated',
         changes,
       });
     }

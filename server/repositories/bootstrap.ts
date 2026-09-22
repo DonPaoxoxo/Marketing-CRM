@@ -12,7 +12,7 @@ import type { PermissionHolder } from '../../src/lib/permissions';
 import { loadProofs, mapProof } from '../routes/agent-proofs';
 import {
   groupBy, mapAccount, mapAgent, mapAssignment, mapAuditChange, mapAuditEntry, mapBrand,
-  mapContentPost, mapCountry, mapCredential, mapDomain, mapPlatform, mapProject, mapSim,
+  mapCompetitor, mapContentPost, mapCountry, mapCredential, mapDomain, mapPlatform, mapProject, mapSim,
   mapSnapshot, mapTeamMember,
 } from './mappers';
 
@@ -28,7 +28,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     countryRows, platformRows, brandRows, brandCountryRows, projectRows, userRows,
     simRows, agentRows, agentBrandRows, agentProjectRows, agentChannelRows,
     accountRows, accountSimRows, credentialRows, assignmentRows, domainRows,
-    snapshotRows, postRows, auditRows, auditChangeRows, proofRows,
+    snapshotRows, postRows, auditRows, auditChangeRows, proofRows, competitorRows,
   ] = await Promise.all([
     query<RowDataPacket>('SELECT * FROM countries ORDER BY name'),
     query<RowDataPacket>('SELECT * FROM platforms ORDER BY name'),
@@ -61,6 +61,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     ),
     // Metadata only; each image is fetched on its own when shown.
     loadProofs(),
+    query<RowDataPacket>('SELECT * FROM pakistan_competitors ORDER BY created_at DESC, id DESC'),
   ]);
 
   const brandCountries = groupBy(brandCountryRows, 'brand_id');
@@ -93,6 +94,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     followerSnapshots: snapshotRows.map(mapSnapshot),
     contentPosts: postRows.map(mapContentPost),
     agentProofs: proofRows.map(mapProof),
+    pakistanCompetitors: competitorRows.map(mapCompetitor),
     auditEntries: auditRows.map((r) =>
       mapAuditEntry(r, (auditChanges.get(String(r.id)) ?? []).map(mapAuditChange)),
     ),

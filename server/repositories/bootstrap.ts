@@ -27,7 +27,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
   // Independent reads, so they go out together rather than one after another.
   const [
     countryRows, platformRows, brandRows, brandCountryRows, projectRows, userRows,
-    simRows, agentRows, agentBrandRows, agentProjectRows, agentChannelRows,
+    simRows, agentRows, agentBrandRows, agentProjectRows, agentChannelRows, agentPostLinkRows,
     accountRows, accountSimRows, credentialRows, assignmentRows, domainRows,
     snapshotRows, postRows, auditRows, auditChangeRows, proofRows, competitorRows, socialPostRows, screenshotMetaRows,
   ] = await Promise.all([
@@ -42,6 +42,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     query<RowDataPacket>('SELECT * FROM agent_brands'),
     query<RowDataPacket>('SELECT * FROM agent_projects'),
     query<RowDataPacket>('SELECT * FROM agent_channels ORDER BY agent_id, position'),
+    query<RowDataPacket>('SELECT * FROM agent_post_links ORDER BY agent_id, position'),
     query<RowDataPacket>('SELECT * FROM social_accounts ORDER BY created_at DESC, id DESC'),
     query<RowDataPacket>('SELECT * FROM account_sims'),
     query<RowDataPacket>('SELECT * FROM credentials ORDER BY id'),
@@ -72,6 +73,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
   const agentBrands = groupBy(agentBrandRows, 'agent_id');
   const agentProjects = groupBy(agentProjectRows, 'agent_id');
   const agentChannels = groupBy(agentChannelRows, 'agent_id');
+  const agentPostLinks = groupBy(agentPostLinkRows, 'agent_id');
   const accountSims = groupBy(accountSimRows, 'account_id');
   const auditChanges = groupBy(auditChangeRows, 'audit_id');
   const column = (map: Map<string, RowDataPacket[]>, key: string, field: string): string[] =>
@@ -88,6 +90,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
       brandIds: column(agentBrands, String(r.id), 'brand_id'),
       projectIds: column(agentProjects, String(r.id), 'project_id'),
       channelUrls: column(agentChannels, String(r.id), 'url'),
+      postLinks: column(agentPostLinks, String(r.id), 'url'),
     })),
     socialAccounts: accountRows.map((r) => mapAccount(r, {
       simIds: column(accountSims, String(r.id), 'sim_id'),

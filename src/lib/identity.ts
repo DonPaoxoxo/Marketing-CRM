@@ -37,6 +37,10 @@ export function telegramKey(raw: string | null | undefined): string {
   return String(raw ?? '').trim().replace(/^@+/, '').replace(/^(https?:\/\/)?(www\.)?t\.me\//i, '').toLowerCase();
 }
 
+/** Telegram's own username rule: 5–32 characters, letters/digits/underscore,
+ *  starting with a letter. Checked against the key (no "@", lower-cased). */
+export const TELEGRAM_USERNAME_PATTERN = /^[a-z][a-z0-9_]{3,30}[a-z0-9]$/i;
+
 /** Query parameters that say where a link was shared from, not what it points
  *  at. Stripped so a page shared from WhatsApp matches the same page typed in. */
 const TRACKING_PARAMS = new Set([

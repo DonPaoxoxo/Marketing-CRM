@@ -21,8 +21,14 @@ export type AccountOperationalStatus = (typeof ACCOUNT_OPERATIONAL_STATUS)[numbe
 export const COOPERATION_STATUS = ['Prospect', 'Onboarding', 'Active', 'Paused', 'Ended'] as const;
 export type CooperationStatus = (typeof COOPERATION_STATUS)[number];
 
-export const AGENT_TYPE = ['Individual', 'Agency'] as const;
+export const AGENT_TYPE = ['Individual', 'Agency', 'Promoter/Influencer'] as const;
 export type AgentType = (typeof AGENT_TYPE)[number];
+
+/** Invoice-style terms for Individual/Agency; content-style terms for
+ *  Promoter/Influencer. Which subset applies to which type lives in
+ *  lib/agents.ts, next to the form that filters on it. */
+export const PAYMENT_TERM = ['Net 7', 'Net 15', 'Net 30', 'Per Post', 'Commission', 'Monthly Retainer'] as const;
+export type PaymentTerm = (typeof PAYMENT_TERM)[number];
 
 export const ASSET_TYPE = ['Profile', 'Page', 'Channel', 'Group', 'Business Account'] as const;
 export type AssetType = (typeof ASSET_TYPE)[number];
@@ -104,12 +110,18 @@ export interface Agent {
   agentType: AgentType;
   contactNumber: string;
   email: string;
+  /** Stored without the leading "@"; shown with it. Same convention as a SIM's. */
+  telegramUsername: string;
   preferredChannel: CommsChannel;
   managerId: ID | null;         // team member
   brandIds: ID[];
   projectIds: ID[];
   channelUrls: string[];
+  /** Specific post links, not the agent's own channel/profile — see channelUrls for that. */
+  postLinks: string[];
   cooperationStatus: CooperationStatus;
+  /** Which choices apply depends on agentType — see PAYMENT_TERM_BY_TYPE in lib/agents.ts. Null until chosen. */
+  paymentTerm: PaymentTerm | null;
   startDate: string | null;
   lastContactedDate: string | null;
   nextFollowUpDate: string | null;

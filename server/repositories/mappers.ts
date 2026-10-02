@@ -45,7 +45,7 @@ export function groupBy(rows: RowDataPacket[], key: string): Map<string, RowData
 }
 
 /** The join-table rows a record needs beyond its own row. */
-export interface AgentChildren { brandIds: string[]; projectIds: string[]; channelUrls: string[] }
+export interface AgentChildren { brandIds: string[]; projectIds: string[]; channelUrls: string[]; postLinks: string[] }
 export interface AccountChildren { simIds: string[] }
 export interface AuditChildren { changes: AuditEntry['changes'] }
 
@@ -130,12 +130,15 @@ export const mapAgent = (r: RowDataPacket, children: AgentChildren): Agent => ({
   agentType: r.agent_type as Agent['agentType'],
   contactNumber: text(r.contact_number),
   email: text(r.email),
+  telegramUsername: text(r.telegram_username),
   preferredChannel: r.preferred_channel as Agent['preferredChannel'],
   managerId: id(r.manager_id),
   brandIds: children.brandIds,
   projectIds: children.projectIds,
   channelUrls: children.channelUrls,
+  postLinks: children.postLinks,
   cooperationStatus: r.cooperation_status as Agent['cooperationStatus'],
+  paymentTerm: (r.payment_term as Agent['paymentTerm']) ?? null,
   startDate: date(r.start_date),
   lastContactedDate: date(r.last_contacted_date),
   nextFollowUpDate: date(r.next_follow_up_date),

@@ -23,7 +23,8 @@ import {
   checkDomainExtras, domainRawFromRecord, domainSheetChanges, domainUpdateFields, validateDomainRow,
 } from '@/lib/domain-import';
 import { checkSimExtras, simRawFromRecord, takenBySims, validateSimRow, noneTaken, addTaken } from '@/lib/sim-import';
-import { emailKey, telegramKey } from '@/lib/identity';
+import { emailKey, telegramKey, TELEGRAM_USERNAME_PATTERN } from '@/lib/identity';
+import { paymentTermFitsType } from '@/lib/agents';
 import { normalizeDomain, normalizePhone } from '@/lib/utils';
 import {
   ACCOUNT_FIELDS, AGENT_FIELDS, ASSIGNMENT_FIELDS, COMPETITOR_FIELDS, CONTENT_POST_FIELDS, CREDENTIAL_FIELDS,
@@ -129,6 +130,28 @@ function agentChannelClash(urls: string[], exceptId?: string) {
     if (holder) return { url, holder };
   }
   return null;
+}
+
+/** Mirrors agentChannelClash, but for individual post links (keyed by
+ *  postUrlKey — a post link names one post, not a page). */
+function agentPostLinkClash(urls: string[], exceptId?: string) {
+  for (const url of urls) {
+    const key = postUrlKey(url);
+    if (!key) continue;
+    const holder = db.agents.find((a) => a.id !== exceptId && !a.archived && urlKeys(a.postLinks, { caseSensitivePath: true }).includes(key));
+    if (holder) return { url, holder };
+  }
+  return null;
+}
+
+/** Mirrors checkAgentTelegram in server/routes/agents.ts. */
+function checkAgentTelegramMock(raw: string): { value: string } | { error: string } {
+  const key = telegramKey(raw);
+  if (!key) return { value: '' };
+  if (!TELEGRAM_USERNAME_PATTERN.test(key)) {
+    return { error: 'A Telegram username is 5–32 letters, digits or underscores, starting with a letter.' };
+  }
+  return { value: key };
 }
 
 /** Purpose/platform plus their matching custom text — mirrors
@@ -260,19 +283,37 @@ export const handlers = [
     if (repeat) return bad(`${repeat} is listed twice.`, 400, { field: 'channelUrls' });
     const channelClash = agentChannelClash(channels);
     if (channelClash) return taken(`channel URL (${channelClash.url})`, channelClash.holder.id, channelClash.holder.name, 'channelUrls');
+    const postLinks = body.postLinks ?? [];
+    const postLinkRepeat = firstRepeat(postLinks, postUrlKey);
+    if (postLinkRepeat) return bad(`${postLinkRepeat} is listed twice.`, 400, { field: 'postLinks' });
+    const postLinkClash = agentPostLinkClash(postLinks);
+    if (postLinkClash) return taken(`post link (${postLinkClash.url})`, postLinkClash.holder.id, postLinkClash.holder.name, 'postLinks');
+    const telegram = checkAgentTelegramMock(body.telegramUsername ?? '');
+    if ('error' in telegram) return bad(telegram.error, 400, { field: 'telegramUsername' });
+    if (telegram.value) {
+      const telegramHolder = db.agents.find((a) => !a.archived && telegramKey(a.telegramUsername) === telegram.value);
+      if (telegramHolder) return taken('Telegram username', telegramHolder.id, telegramHolder.name, 'telegramUsername');
+    }
+    const agentType = body.agentType ?? 'Individual';
+    if (body.paymentTerm && !paymentTermFitsType(body.paymentTerm, agentType)) {
+      return bad(`"${body.paymentTerm}" is not a payment term for ${agentType}.`, 400, { field: 'paymentTerm' });
+    }
     const rec: Agent = {
       id: nextId('AGT', db.agents, 3),
       name: body.name.trim(),
       externalUid: uid,
-      agentType: body.agentType ?? 'Individual',
+      agentType,
       contactNumber: normalizePhone(body.contactNumber ?? ''),
       email: body.email ?? '',
+      telegramUsername: telegram.value,
       preferredChannel: body.preferredChannel ?? 'Email',
       managerId: body.managerId ?? null,
       brandIds: body.brandIds ?? [],
       projectIds: body.projectIds ?? [],
       channelUrls: body.channelUrls ?? [],
+      postLinks,
       cooperationStatus: body.cooperationStatus ?? 'Prospect',
+      paymentTerm: body.paymentTerm ?? null,
       salaryStatus: null, salaryNote: '', salaryUpdatedByName: '', salaryUpdatedAt: null,
       startDate: body.startDate ?? null,
       lastContactedDate: body.lastContactedDate ?? null,
@@ -332,6 +373,13 @@ export const handlers = [
       if (uidHolder) return taken('UID', uidHolder.id, uidHolder.name, 'externalUid');
       const clash = agentChannelClash(patch.channelUrls ?? rec.channelUrls, rec.id);
       if (clash) return taken(`channel URL (${clash.url})`, clash.holder.id, clash.holder.name, 'channelUrls');
+      const postLinkClash = agentPostLinkClash(patch.postLinks ?? rec.postLinks, rec.id);
+      if (postLinkClash) return taken(`post link (${postLinkClash.url})`, postLinkClash.holder.id, postLinkClash.holder.name, 'postLinks');
+      const restoreTelegramKey = telegramKey(patch.telegramUsername ?? rec.telegramUsername);
+      const telegramHolder = restoreTelegramKey
+        ? db.agents.find((a) => a.id !== rec.id && !a.archived && telegramKey(a.telegramUsername) === restoreTelegramKey)
+        : undefined;
+      if (telegramHolder) return taken('Telegram username', telegramHolder.id, telegramHolder.name, 'telegramUsername');
     }
     if (patch.externalUid !== undefined) {
       patch.externalUid = patch.externalUid.trim();
@@ -353,6 +401,29 @@ export const handlers = [
       const had = new Set(urlKeys(rec.channelUrls));
       const clash = agentChannelClash(patch.channelUrls.filter((u) => !had.has(pageUrlKey(u))), rec.id);
       if (clash) return taken(`channel URL (${clash.url})`, clash.holder.id, clash.holder.name, 'channelUrls');
+    }
+    if (patch.postLinks) {
+      const repeat = firstRepeat(patch.postLinks, postUrlKey);
+      if (repeat) return bad(`${repeat} is listed twice.`, 400, { field: 'postLinks' });
+      const had = new Set(urlKeys(rec.postLinks, { caseSensitivePath: true }));
+      const clash = agentPostLinkClash(patch.postLinks.filter((u) => !had.has(postUrlKey(u))), rec.id);
+      if (clash) return taken(`post link (${clash.url})`, clash.holder.id, clash.holder.name, 'postLinks');
+    }
+    if (patch.telegramUsername !== undefined) {
+      const telegram = checkAgentTelegramMock(patch.telegramUsername);
+      if ('error' in telegram) return bad(telegram.error, 400, { field: 'telegramUsername' });
+      patch.telegramUsername = telegram.value;
+      if (telegram.value && telegram.value !== telegramKey(rec.telegramUsername)) {
+        const holder = db.agents.find((a) => a.id !== rec.id && !a.archived && telegramKey(a.telegramUsername) === telegram.value);
+        if (holder) return taken('Telegram username', holder.id, holder.name, 'telegramUsername');
+      }
+    }
+    {
+      const agentType = patch.agentType ?? rec.agentType;
+      const paymentTerm = patch.paymentTerm !== undefined ? patch.paymentTerm : rec.paymentTerm;
+      if (paymentTerm && !paymentTermFitsType(paymentTerm, agentType)) {
+        return bad(`"${paymentTerm}" is not a payment term for ${agentType}.`, 400, { field: 'paymentTerm' });
+      }
     }
     const changes = diffRecords(rec as unknown as Record<string, unknown>, patch as Record<string, unknown>);
     const restoring = patch.archived === false && rec.archived;
@@ -1147,9 +1218,11 @@ export const handlers = [
           id: nextId('AGT', db.agents, 3), name, externalUid: '',
           agentType: (row.agentType as Agent['agentType']) ?? 'Individual',
           contactNumber: normalizePhone(String(row.contactNumber ?? '')), email: clean(row.email, 160),
+          telegramUsername: '',
           preferredChannel: (row.preferredChannel as Agent['preferredChannel']) ?? 'Email',
-          managerId: null, brandIds: [], projectIds: [], channelUrls: [],
+          managerId: null, brandIds: [], projectIds: [], channelUrls: [], postLinks: [],
           cooperationStatus: (row.cooperationStatus as Agent['cooperationStatus']) ?? 'Prospect',
+          paymentTerm: null,
           salaryStatus: null, salaryNote: '', salaryUpdatedByName: '', salaryUpdatedAt: null,
           startDate: (row.startDate as string) || null, lastContactedDate: null, nextFollowUpDate: null,
           agreementRef: clean(row.agreementRef, 200), notes: clean(row.notes, 4000),

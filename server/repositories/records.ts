@@ -80,15 +80,17 @@ export async function readSim(id: string, conn?: PoolConnection): Promise<Sim | 
 export async function readAgent(id: string, conn?: PoolConnection): Promise<Agent | null> {
   const row = await one(id, 'agents', conn);
   if (!row) return null;
-  const [brands, projects, channels] = await Promise.all([
+  const [brands, projects, channels, postLinks] = await Promise.all([
     query<RowDataPacket>('SELECT brand_id FROM agent_brands WHERE agent_id = ?', [id], conn),
     query<RowDataPacket>('SELECT project_id FROM agent_projects WHERE agent_id = ?', [id], conn),
     query<RowDataPacket>('SELECT url FROM agent_channels WHERE agent_id = ? ORDER BY position', [id], conn),
+    query<RowDataPacket>('SELECT url FROM agent_post_links WHERE agent_id = ? ORDER BY position', [id], conn),
   ]);
   return mapAgent(row, {
     brandIds: brands.map((b) => String(b.brand_id)),
     projectIds: projects.map((p) => String(p.project_id)),
     channelUrls: channels.map((c) => String(c.url)),
+    postLinks: postLinks.map((p) => String(p.url)),
   });
 }
 

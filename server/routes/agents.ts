@@ -8,6 +8,7 @@ import { Router } from 'express';
 import type { Agent } from '../../src/lib/types';
 import { AGENT_FIELDS, sanitizeFields } from '../../src/lib/sanitize';
 import { normalizePhone } from '../../src/lib/utils';
+import { paymentTermFitsType } from '../../src/lib/agents';
 import { execute, tx } from '../db/pool';
 import { nextId } from '../db/ids';
 import { recordAudit } from '../audit';
@@ -23,15 +24,16 @@ import {
 } from '../repositories/records';
 import { actorOf, assertMayArchive, bodyOf, nowDate } from './helpers';
 import {
-  agentChannelHolder, agentPhoneHolder, agentUidHolder, assertNoRepeatedUrl, keyChanged, taken,
+  agentChannelHolder, agentPhoneHolder, agentPostLinkHolder, agentTelegramHolder, agentUidHolder,
+  assertNoRepeatedPostUrl, assertNoRepeatedUrl, keyChanged, taken,
 } from './duplicates';
-import { pageUrlKey, phoneKey, urlKeys } from '../../src/lib/identity';
+import { pageUrlKey, phoneKey, postUrlKey, telegramKey, TELEGRAM_USERNAME_PATTERN, urlKeys } from '../../src/lib/identity';
 
 export const agentsRouter = Router();
 
 type AgentBody = Partial<Agent> & { reason?: string };
 
-/** The three lists that live in join tables rather than on the row. */
+/** The four lists that live in join tables rather than on the row. */
 async function writeLinks(
   conn: Parameters<typeof replaceLinks>[0],
   id: string,
@@ -40,6 +42,18 @@ async function writeLinks(
   if (body.brandIds) await replaceLinks(conn, 'agent_brands', 'agent_id', id, 'brand_id', body.brandIds);
   if (body.projectIds) await replaceLinks(conn, 'agent_projects', 'agent_id', id, 'project_id', body.projectIds);
   if (body.channelUrls) await replaceOrdered(conn, 'agent_channels', 'agent_id', id, 'url', body.channelUrls);
+  if (body.postLinks) await replaceOrdered(conn, 'agent_post_links', 'agent_id', id, 'url', body.postLinks);
+}
+
+/** Trims and lower-cases a typed-in Telegram username into its stored form
+ *  (no "@"), checking the shape Telegram itself requires. Empty is always fine. */
+function checkAgentTelegram(raw: string): { value: string } | { error: string } {
+  const key = telegramKey(raw);
+  if (!key) return { value: '' };
+  if (!TELEGRAM_USERNAME_PATTERN.test(key)) {
+    return { error: 'A Telegram username is 5–32 letters, digits or underscores, starting with a letter.' };
+  }
+  return { value: key };
 }
 
 agentsRouter.post('/', requirePermission('edit:resources'), asyncHandler(async (req, res) => {
@@ -57,6 +71,22 @@ agentsRouter.post('/', requirePermission('edit:resources'), asyncHandler(async (
     const channelHolder = await agentChannelHolder(body.channelUrls);
     if (channelHolder) throw taken(`channel URL (${channelHolder.url})`, channelHolder, 'channelUrls');
   }
+  if (body.postLinks) {
+    assertNoRepeatedPostUrl(body.postLinks, 'postLinks');
+    const postLinkHolder = await agentPostLinkHolder(body.postLinks);
+    if (postLinkHolder) throw taken(`post link (${postLinkHolder.url})`, postLinkHolder, 'postLinks');
+  }
+  const telegram = checkAgentTelegram(body.telegramUsername ?? '');
+  if ('error' in telegram) throw badRequest(telegram.error, { field: 'telegramUsername' });
+  body.telegramUsername = telegram.value;
+  if (telegram.value) {
+    const telegramHolder = await agentTelegramHolder(telegram.value);
+    if (telegramHolder) throw taken('Telegram username', telegramHolder, 'telegramUsername');
+  }
+  const agentType = body.agentType ?? 'Individual';
+  if (body.paymentTerm && !paymentTermFitsType(body.paymentTerm, agentType)) {
+    throw badRequest(`"${body.paymentTerm}" is not a payment term for ${agentType}.`, { field: 'paymentTerm' });
+  }
 
   const actor = actorOf(req);
   const record = await tx(async (conn) => {
@@ -65,7 +95,7 @@ agentsRouter.post('/', requirePermission('edit:resources'), asyncHandler(async (
     const values = {
       ...pick(body, AGENT_COLUMNS),
       name,
-      agentType: body.agentType ?? 'Individual',
+      agentType,
       contactNumber: normalizePhone(body.contactNumber ?? ''),
       email: body.email ?? '',
       preferredChannel: body.preferredChannel ?? 'Email',
@@ -161,6 +191,29 @@ agentsRouter.patch('/:id', requirePermission('edit:resources'), asyncHandler(asy
     const holder = await agentChannelHolder(added, id);
     if (holder) throw taken(`channel URL (${holder.url})`, holder, 'channelUrls');
   }
+  if (body.postLinks) {
+    assertNoRepeatedPostUrl(body.postLinks, 'postLinks');
+    const had = new Set(urlKeys(before.postLinks, { caseSensitivePath: true }));
+    const added = body.postLinks.filter((u) => postUrlKey(u) && !had.has(postUrlKey(u)));
+    const holder = await agentPostLinkHolder(added, id);
+    if (holder) throw taken(`post link (${holder.url})`, holder, 'postLinks');
+  }
+  if (body.telegramUsername !== undefined) {
+    const telegram = checkAgentTelegram(body.telegramUsername);
+    if ('error' in telegram) throw badRequest(telegram.error, { field: 'telegramUsername' });
+    body.telegramUsername = telegram.value;
+    if (telegram.value && telegramKey(telegram.value) !== telegramKey(before.telegramUsername)) {
+      const holder = await agentTelegramHolder(telegram.value, id);
+      if (holder) throw taken('Telegram username', holder, 'telegramUsername');
+    }
+  }
+  {
+    const agentType = body.agentType ?? before.agentType;
+    const paymentTerm = body.paymentTerm !== undefined ? body.paymentTerm : before.paymentTerm;
+    if (paymentTerm && !paymentTermFitsType(paymentTerm, agentType)) {
+      throw badRequest(`"${paymentTerm}" is not a payment term for ${agentType}.`, { field: 'paymentTerm' });
+    }
+  }
 
   const { reason, ...rest } = body;
   const patch = pick(rest, AGENT_COLUMNS);
@@ -179,12 +232,16 @@ agentsRouter.patch('/:id', requirePermission('edit:resources'), asyncHandler(asy
     if (uid) throw taken('UID', uid, 'externalUid');
     const channel = await agentChannelHolder(body.channelUrls ?? before.channelUrls, id);
     if (channel) throw taken(`channel URL (${channel.url})`, channel, 'channelUrls');
+    const postLink = await agentPostLinkHolder(body.postLinks ?? before.postLinks, id);
+    if (postLink) throw taken(`post link (${postLink.url})`, postLink, 'postLinks');
+    const telegram = await agentTelegramHolder(body.telegramUsername ?? before.telegramUsername, id);
+    if (telegram) throw taken('Telegram username', telegram, 'telegramUsername');
   }
 
   // The join-table lists are not columns, so they are diffed separately —
   // otherwise changing only an agent's brands would write no history.
   const listPatch: Record<string, unknown> = {};
-  for (const field of ['brandIds', 'projectIds', 'channelUrls'] as const) {
+  for (const field of ['brandIds', 'projectIds', 'channelUrls', 'postLinks'] as const) {
     if (rest[field]) listPatch[field] = rest[field];
   }
   const changes = diffRecords(

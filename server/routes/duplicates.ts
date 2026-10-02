@@ -14,7 +14,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import { query, queryOne } from '../db/pool';
 import { conflict, badRequest } from '../http/errors';
-import { firstRepeat, pageUrlKey, phoneKey, postUrlKey } from '../../src/lib/identity';
+import { firstRepeat, pageUrlKey, phoneKey, postUrlKey, telegramKey } from '../../src/lib/identity';
 
 export interface Holder { id: string; label: string }
 
@@ -101,9 +101,44 @@ export async function agentChannelHolder(urls: readonly string[], exceptId?: str
   return null;
 }
 
+/** The first of these post links already listed on another live agent. Keyed
+ *  by postUrlKey, not pageUrlKey — a post link names one post, not a page. */
+export async function agentPostLinkHolder(urls: readonly string[], exceptId?: string): Promise<(Holder & { url: string }) | null> {
+  const wanted = new Map(urls.map((u) => [postUrlKey(u), u] as const).filter(([k]) => k));
+  if (!wanted.size) return null;
+  const rows = await query<RowDataPacket>(
+    `SELECT l.agent_id, a.name, l.url FROM agent_post_links l
+       JOIN agents a ON a.id = l.agent_id
+      WHERE a.archived = 0 ${exceptId ? 'AND a.id <> ?' : ''}`,
+    exceptId ? [exceptId] : [],
+  );
+  for (const r of rows) {
+    const url = wanted.get(postUrlKey(String(r.url)));
+    if (url) return { id: String(r.agent_id), label: `${r.agent_id} (${r.name})`, url };
+  }
+  return null;
+}
+
+/** Another live agent already using this Telegram username. */
+export async function agentTelegramHolder(username: string, exceptId?: string): Promise<Holder | null> {
+  const key = telegramKey(username);
+  if (!key) return null;
+  const row = await queryOne<RowDataPacket>(
+    `SELECT id, name FROM agents WHERE archived = 0 AND LOWER(telegram_username) = ? ${exceptId ? 'AND id <> ?' : ''} LIMIT 1`,
+    exceptId ? [key, exceptId] : [key],
+  );
+  return row ? { id: String(row.id), label: `${row.id} (${row.name})` } : null;
+}
+
 /** Refuses a list that names the same page twice. */
 export function assertNoRepeatedUrl(urls: readonly string[], field: string): void {
   const repeat = firstRepeat(urls, pageUrlKey);
+  if (repeat) throw badRequest(`${repeat} is listed twice.`, { field });
+}
+
+/** Refuses a list that names the same post twice. */
+export function assertNoRepeatedPostUrl(urls: readonly string[], field: string): void {
+  const repeat = firstRepeat(urls, postUrlKey);
   if (repeat) throw badRequest(`${repeat} is listed twice.`, { field });
 }
 

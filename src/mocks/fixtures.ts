@@ -14,6 +14,7 @@ import type {
   FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
+import { PAYMENT_TERM_BY_TYPE } from '@/lib/agents';
 
 /* Small deterministic PRNG so the dataset is identical on every reload. */
 function mulberry32(seed: number) {
@@ -161,6 +162,7 @@ export const agents: Agent[] = AGENT_NAMES.map((name, i) => {
     agentType: isAgency ? 'Agency' : 'Individual',
     contactNumber: phoneFor(pick(['IN', 'ID']), i + 300),
     email: `${name.toLowerCase().replace(/[^a-z]+/g, '.')}@agents.example-internal.test`,
+    telegramUsername: chance(0.4) ? `${name.toLowerCase().replace(/[^a-z]+/g, '')}agent` : '',
     preferredChannel: pick(['WhatsApp', 'Email', 'Telegram', 'Phone'] as const),
     managerId: pick(teamMembers.filter((t) => t.role !== 'Read-only Reviewer')).id,
     brandIds,
@@ -171,7 +173,14 @@ export const agents: Agent[] = AGENT_NAMES.map((name, i) => {
        `https://tiktok.com/@${name.toLowerCase().replace(/[^a-z]+/g, '')}`],
       int(1, 3),
     ),
+    postLinks: chance(0.5)
+      ? pickSome([
+          `https://instagram.com/p/${name.toLowerCase().replace(/[^a-z]+/g, '')}${i}`,
+          `https://tiktok.com/@${name.toLowerCase().replace(/[^a-z]+/g, '')}/video/${7_000_000_000 + i}`,
+        ], int(1, 2))
+      : [],
     cooperationStatus: status,
+    paymentTerm: chance(0.5) ? pick(PAYMENT_TERM_BY_TYPE[isAgency ? 'Agency' : 'Individual']) : null,
     // Not drawn from the seeded sequence, so the other fixtures stay the same.
     salaryStatus: null,
     salaryNote: '',

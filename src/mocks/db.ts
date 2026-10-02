@@ -7,7 +7,7 @@ import * as seed from './seed';
 import * as fixtures from './fixtures';
 import type {
   Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, RoleName, Sim, SocialAccount, SocialMediaPost, TeamMember,
+  FollowerSnapshot, Platform, Project, RoleName, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 
 export interface Database {
@@ -27,8 +27,11 @@ export interface Database {
   agentProofs: AgentProof[];
   pakistanCompetitors: CompetitorRecord[];
   socialMediaPosts: SocialMediaPost[];
+  socialPostScreenshots: SocialPostScreenshot[];
   /** Proof images by proof id, as data: URLs. Memory only. */
   proofImages: Record<string, { mime: string; base64: string }>;
+  /** Post screenshots by post id, as data: URLs. Memory only — mirrors proofImages. */
+  screenshotImages: Record<string, { mime: string; base64: string }>;
   auditEntries: AuditEntry[];
 }
 
@@ -54,7 +57,9 @@ function snapshotOf(source: typeof seed | typeof fixtures): Database {
     agentProofs: source.agentProofs,
     pakistanCompetitors: source.pakistanCompetitors,
     socialMediaPosts: source.socialMediaPosts,
+    socialPostScreenshots: source.socialPostScreenshots,
     proofImages: {},
+    screenshotImages: {},
     auditEntries: source.auditEntries,
   });
 }

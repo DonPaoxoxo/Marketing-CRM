@@ -9,7 +9,7 @@ import {
   SOCIAL_POST_PLATFORM, SOCIAL_POST_PURPOSE,
   type AgentProof, type Agent, type Assignment, type AuditEntry, type CompetitorRecord, type ContentPost,
   type CredentialRef, type DomainRecord, type FollowerSnapshot, type RoleName, type Sim, type SocialAccount,
-  type SocialMediaPost, type TeamMember,
+  type SocialMediaPost, type SocialPostScreenshot, type TeamMember,
 } from '@/lib/types';
 import { checkAssignmentConflict } from '@/lib/rules';
 import { teamReportHandlers } from './team-reports';
@@ -176,6 +176,7 @@ export const handlers = [
       agentProofs: db.agentProofs,
       pakistanCompetitors: db.pakistanCompetitors,
       socialMediaPosts: db.socialMediaPosts,
+      socialPostScreenshots: db.socialPostScreenshots,
       auditEntries: db.auditEntries,
     });
   }),
@@ -836,6 +837,11 @@ export const handlers = [
     const reason = (body.reason ?? '').trim();
     if (!reason) return bad('Deleting a post needs a written reason.', 400, { field: 'reason' });
     db.socialMediaPosts.splice(index, 1);
+    // Mirrors the real schema's ON DELETE CASCADE: a post's screenshot cannot
+    // outlive the post.
+    const screenshotIndex = db.socialPostScreenshots.findIndex((s) => s.postId === rec.id);
+    if (screenshotIndex !== -1) db.socialPostScreenshots.splice(screenshotIndex, 1);
+    delete db.screenshotImages[rec.id];
     recordAudit({
       actor: actor(request),
       recordType: 'Social Media Post',
@@ -846,6 +852,56 @@ export const handlers = [
       changes: [],
     });
     return HttpResponse.json({ deleted: rec.id });
+  }),
+
+  http.post(`${API}/social-media-posts/:id/screenshot`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'edit:resources')) return noAccess();
+    const post = db.socialMediaPosts.find((p) => p.id === params.id);
+    if (!post) return bad('Post not found.', 404);
+    const body = (await request.json()) as { image?: unknown };
+    const bytes = decodeBase64Image(body.image);
+    if (!bytes) return bad('The image could not be read. Choose the file again.', 400, { field: 'image' });
+    const image = checkProofImage(bytes);
+    if ('error' in image) return bad(image.error, 400, { field: 'image' });
+
+    const who = actor(request);
+    const meta: SocialPostScreenshot = {
+      postId: post.id, mimeType: image.mime, sizeBytes: bytes.length, uploadedById: who.id, uploadedByName: who.name, uploadedAt: now(),
+    };
+    const existingIndex = db.socialPostScreenshots.findIndex((s) => s.postId === post.id);
+    if (existingIndex !== -1) db.socialPostScreenshots.splice(existingIndex, 1, meta);
+    else db.socialPostScreenshots.unshift(meta);
+    db.screenshotImages[post.id] = { mime: image.mime, base64: String(body.image).replace(/^data:[^;,]*;base64,/, '') };
+
+    recordAudit({
+      actor: who, recordType: 'Social Media Post', recordId: post.id, recordLabel: `${post.id} — ${post.platform}`,
+      action: 'update', reason: 'Screenshot uploaded', changes: [{ field: 'screenshot', from: null, to: '[uploaded]' }],
+    });
+    return HttpResponse.json(meta, { status: 201 });
+  }),
+
+  http.get(`${API}/social-media-posts/:id/screenshot`, ({ params }) => {
+    const stored = db.screenshotImages[String(params.id)];
+    if (!stored) return bad('No screenshot for this post.', 404);
+    const bytes = decodeBase64Image(stored.base64) ?? new Uint8Array();
+    return new HttpResponse(bytes, { headers: { 'Content-Type': stored.mime } });
+  }),
+
+  http.delete(`${API}/social-media-posts/:id/screenshot`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'edit:resources')) return noAccess();
+    const post = db.socialMediaPosts.find((p) => p.id === params.id);
+    if (!post) return bad('Post not found.', 404);
+    const index = db.socialPostScreenshots.findIndex((s) => s.postId === post.id);
+    if (index === -1) return bad('No screenshot for this post.', 404);
+    db.socialPostScreenshots.splice(index, 1);
+    delete db.screenshotImages[post.id];
+    recordAudit({
+      actor: actor(request), recordType: 'Social Media Post', recordId: post.id, recordLabel: `${post.id} — ${post.platform}`,
+      action: 'update', reason: 'Screenshot removed', changes: [{ field: 'screenshot', from: '[uploaded]', to: null }],
+    });
+    return HttpResponse.json({ removed: post.id });
   }),
 
   /* ── Follower snapshots ───────────────────────────────────── */

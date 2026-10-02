@@ -11,7 +11,7 @@
 
 import type {
   Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, TeamMember,
+  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
 
@@ -503,6 +503,8 @@ export const socialMediaPosts: SocialMediaPost[] = SOCIAL_POST_SEED.map((s, i) =
   createdAt: stamp(s.offset),
   updatedAt: stamp(s.offset),
 }));
+
+export const socialPostScreenshots: SocialPostScreenshot[] = [];
 
 export const auditEntries: AuditEntry[] = [
   ...assignments.slice(0, 25).map((a, i) => ({

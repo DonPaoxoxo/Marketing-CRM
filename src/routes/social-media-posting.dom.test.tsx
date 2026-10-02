@@ -183,3 +183,24 @@ describe('Social Media Posting — bulk selection', () => {
     expect(screen.queryByText('1 selected')).toBeNull();
   });
 });
+
+describe('Social Media Posting — screenshot', () => {
+  it('uploads a screenshot, shows it as a thumbnail, and can remove it', async () => {
+    mount();
+    await heading(/Social Media Posting/);
+    await screen.findByText('No posts match');
+    await showAllFixtureDates();
+
+    const target = db.socialMediaPosts.find((p) => p.status === 'active')!;
+    const uploadInput = await screen.findByLabelText(`Screenshot for ${target.id}`, {}, { timeout: 8000 });
+    const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])], 'proof.png', { type: 'image/png' });
+    fireEvent.change(uploadInput, { target: { files: [png] } });
+
+    await waitFor(() => expect(db.socialPostScreenshots.some((s) => s.postId === target.id)).toBe(true), { timeout: 8000 });
+    await screen.findByRole('img', { name: `Screenshot for ${target.id}` }, { timeout: 8000 });
+
+    fireEvent.click(await screen.findByRole('button', { name: `Remove screenshot for ${target.id}` }, { timeout: 8000 }));
+    await waitFor(() => expect(db.socialPostScreenshots.some((s) => s.postId === target.id)).toBe(false), { timeout: 8000 });
+    expect(await screen.findByRole('button', { name: `Upload screenshot for ${target.id}` }, { timeout: 8000 })).toBeTruthy();
+  });
+});

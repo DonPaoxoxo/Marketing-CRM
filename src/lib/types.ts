@@ -282,6 +282,18 @@ export interface SocialMediaPost {
   updatedAt: string;
 }
 
+/** A screenshot proving a post went out — metadata only, one per post. The
+ *  image itself is fetched separately (see proofImageUrl-style helpers),
+ *  never carried in the workspace payload, the same split AgentProof uses. */
+export interface SocialPostScreenshot {
+  postId: ID;
+  mimeType: string;
+  sizeBytes: number;
+  uploadedById: ID | null;
+  uploadedByName: string;
+  uploadedAt: string;
+}
+
 /** One observed follower total for one account on one day.
  *
  *  The *total* is recorded, never the gain — gain is derived against the previous
@@ -413,6 +425,7 @@ export interface Bootstrap {
   agentProofs: AgentProof[];
   pakistanCompetitors: CompetitorRecord[];
   socialMediaPosts: SocialMediaPost[];
+  socialPostScreenshots: SocialPostScreenshot[];
   auditEntries: AuditEntry[];
 }
 

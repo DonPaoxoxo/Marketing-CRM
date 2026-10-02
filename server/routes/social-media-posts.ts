@@ -5,13 +5,15 @@
  *  should never have existed, same bar as Team Reports. */
 
 import { Router } from 'express';
-import type { SocialMediaPost } from '../../src/lib/types';
-import { SOCIAL_POST_FIELDS, sanitizeFields } from '../../src/lib/sanitize';
+import type { RowDataPacket } from 'mysql2/promise';
+import type { SocialMediaPost, SocialPostScreenshot } from '../../src/lib/types';
+import { SOCIAL_POST_FIELDS, sanitizeFields, sanitizeText } from '../../src/lib/sanitize';
 import { SOCIAL_POST_PLATFORM, SOCIAL_POST_PURPOSE } from '../../src/lib/types';
-import { execute, tx } from '../db/pool';
+import { checkProofImage, decodeBase64Image } from '../../src/lib/proofs';
+import { execute, query, queryOne, tx } from '../db/pool';
 import { nextId } from '../db/ids';
 import { recordAudit } from '../audit';
-import { requirePermission } from '../auth/middleware';
+import { requireAuth, requirePermission } from '../auth/middleware';
 import { asyncHandler, badRequest, forbidden, notFound } from '../http/errors';
 import { hasPermission } from '../../src/lib/permissions';
 import {
@@ -22,6 +24,91 @@ import { actorOf, bodyOf, nowDate } from './helpers';
 export const socialMediaPostsRouter = Router();
 
 type PostBody = Partial<SocialMediaPost> & { reason?: string };
+
+/* ── Screenshots ──────────────────────────────────────────────────────────
+ * Kept apart from social_media_posts, the same way agent_proofs is kept
+ * apart from agents: the image is never selected into the bootstrap payload,
+ * only this metadata is — fetched here rather than through the generic
+ * repository, exactly like loadProofs/mapProof in agent-proofs.ts. */
+
+const SCREENSHOT_META_FIELDS = 'post_id, mime_type, size_bytes, uploaded_by, uploaded_by_name, uploaded_at';
+
+export const mapScreenshotMeta = (r: RowDataPacket): SocialPostScreenshot => ({
+  postId: String(r.post_id),
+  mimeType: String(r.mime_type),
+  sizeBytes: Number(r.size_bytes),
+  uploadedById: r.uploaded_by ? String(r.uploaded_by) : null,
+  uploadedByName: String(r.uploaded_by_name ?? ''),
+  uploadedAt: new Date(r.uploaded_at).toISOString(),
+});
+
+export const loadScreenshotsMeta = () =>
+  query<RowDataPacket>(`SELECT ${SCREENSHOT_META_FIELDS} FROM social_post_screenshots ORDER BY uploaded_at DESC`);
+
+socialMediaPostsRouter.post('/:id/screenshot', requirePermission('edit:resources'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  const post = await readSocialPost(id);
+  if (!post) throw notFound('Post not found.');
+
+  const bytes = decodeBase64Image(bodyOf<{ image?: unknown }>(req).image);
+  if (!bytes) throw badRequest('The image could not be read. Choose the file again.', { field: 'image' });
+  const checked = checkProofImage(bytes);
+  if ('error' in checked) throw badRequest(checked.error, { field: 'image' });
+
+  const actor = actorOf(req);
+  const meta = await tx(async (conn) => {
+    const now = nowDate();
+    // Replace rather than merge: one screenshot per post, so a new upload
+    // simply takes over the row.
+    await execute('DELETE FROM social_post_screenshots WHERE post_id = ?', [id], conn);
+    await execute(
+      `INSERT INTO social_post_screenshots (post_id, mime_type, size_bytes, image, uploaded_by, uploaded_by_name, uploaded_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [id, checked.mime, bytes.length, Buffer.from(bytes), actor.id, sanitizeText(actor.name, 160), now],
+      conn,
+    );
+    await recordAudit(conn, {
+      actor, recordType: 'Social Media Post', recordId: id, recordLabel: `${id} — ${post.platform}`, action: 'update',
+      reason: 'Screenshot uploaded',
+      changes: [{ field: 'screenshot', from: null, to: '[uploaded]' }],
+    });
+    const row = await queryOne<RowDataPacket>(`SELECT ${SCREENSHOT_META_FIELDS} FROM social_post_screenshots WHERE post_id = ?`, [id], conn);
+    return mapScreenshotMeta(row!);
+  });
+
+  res.status(201).json(meta);
+}));
+
+socialMediaPostsRouter.get('/:id/screenshot', requireAuth, asyncHandler(async (req, res) => {
+  const row = await queryOne<RowDataPacket>('SELECT mime_type, image FROM social_post_screenshots WHERE post_id = ?', [String(req.params.id)]);
+  if (!row) throw notFound('No screenshot for this post.');
+  const image = row.image as Buffer;
+  res.setHeader('Content-Type', String(row.mime_type));
+  res.setHeader('Content-Length', String(image.length));
+  res.setHeader('Content-Disposition', 'inline');
+  // An image, never a document: nothing in it may run.
+  res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+  res.end(image);
+}));
+
+socialMediaPostsRouter.delete('/:id/screenshot', requirePermission('edit:resources'), asyncHandler(async (req, res) => {
+  const id = String(req.params.id);
+  const post = await readSocialPost(id);
+  if (!post) throw notFound('Post not found.');
+
+  const actor = actorOf(req);
+  await tx(async (conn) => {
+    const removed = await execute('DELETE FROM social_post_screenshots WHERE post_id = ?', [id], conn);
+    if (removed.affectedRows === 0) throw notFound('No screenshot for this post.');
+    await recordAudit(conn, {
+      actor, recordType: 'Social Media Post', recordId: id, recordLabel: `${id} — ${post.platform}`, action: 'update',
+      reason: 'Screenshot removed',
+      changes: [{ field: 'screenshot', from: '[uploaded]', to: null }],
+    });
+  });
+
+  res.json({ removed: id });
+}));
 
 /** Purpose/platform plus their matching custom text, the same rule in both
  *  directions: "Others" needs the custom field written in; anything else

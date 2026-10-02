@@ -4,6 +4,7 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { ApiError, BOOTSTRAP_KEY, useActorQuery, withActor } from '@/hooks/useData';
+import type { SocialPostScreenshot } from '@/lib/types';
 
 async function call<T>(url: string, init: RequestInit = {}): Promise<T> {
   const res = await fetch(url, {
@@ -64,6 +65,40 @@ export function useBulkSetSocialPostsStatus() {
       } else {
         toast.success(`${total} posting record${total === 1 ? '' : 's'} ${verb}`);
       }
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}
+
+/** Where a post's screenshot is served from. Same origin, so the session
+ *  cookie goes with it — the image is never carried in the bootstrap payload. */
+export const screenshotImageUrl = (postId: string) => `/api/social-media-posts/${encodeURIComponent(postId)}/screenshot`;
+
+export function useUploadScreenshot() {
+  const qc = useQueryClient();
+  const actor = useActorQuery();
+  return useMutation({
+    mutationFn: ({ postId, image }: { postId: string; image: string }) =>
+      call<SocialPostScreenshot>(withActor(`/api/social-media-posts/${postId}/screenshot`, actor), {
+        method: 'POST', body: JSON.stringify({ image }),
+      }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
+      toast.success('Screenshot uploaded');
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}
+
+export function useRemoveScreenshot() {
+  const qc = useQueryClient();
+  const actor = useActorQuery();
+  return useMutation({
+    mutationFn: ({ postId }: { postId: string }) =>
+      call<{ removed: string }>(withActor(`/api/social-media-posts/${postId}/screenshot`, actor), { method: 'DELETE' }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
+      toast.success('Screenshot removed');
     },
     onError: (e: ApiError) => toast.error(e.message),
   });

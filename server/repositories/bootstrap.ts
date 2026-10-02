@@ -10,6 +10,7 @@ import type { Bootstrap } from '../../src/lib/types';
 import { bootstrapFor } from '../../src/lib/access';
 import type { PermissionHolder } from '../../src/lib/permissions';
 import { loadProofs, mapProof } from '../routes/agent-proofs';
+import { loadScreenshotsMeta, mapScreenshotMeta } from '../routes/social-media-posts';
 import {
   groupBy, mapAccount, mapAgent, mapAssignment, mapAuditChange, mapAuditEntry, mapBrand,
   mapCompetitor, mapContentPost, mapCountry, mapCredential, mapDomain, mapPlatform, mapProject, mapSim,
@@ -28,7 +29,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     countryRows, platformRows, brandRows, brandCountryRows, projectRows, userRows,
     simRows, agentRows, agentBrandRows, agentProjectRows, agentChannelRows,
     accountRows, accountSimRows, credentialRows, assignmentRows, domainRows,
-    snapshotRows, postRows, auditRows, auditChangeRows, proofRows, competitorRows, socialPostRows,
+    snapshotRows, postRows, auditRows, auditChangeRows, proofRows, competitorRows, socialPostRows, screenshotMetaRows,
   ] = await Promise.all([
     query<RowDataPacket>('SELECT * FROM countries ORDER BY name'),
     query<RowDataPacket>('SELECT * FROM platforms ORDER BY name'),
@@ -63,6 +64,8 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     loadProofs(),
     query<RowDataPacket>('SELECT * FROM pakistan_competitors ORDER BY created_at DESC, id DESC'),
     query<RowDataPacket>('SELECT * FROM social_media_posts ORDER BY post_date DESC, id DESC'),
+    // Metadata only; the image itself is fetched on its own when shown.
+    loadScreenshotsMeta(),
   ]);
 
   const brandCountries = groupBy(brandCountryRows, 'brand_id');
@@ -97,6 +100,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     agentProofs: proofRows.map(mapProof),
     pakistanCompetitors: competitorRows.map(mapCompetitor),
     socialMediaPosts: socialPostRows.map(mapSocialPost),
+    socialPostScreenshots: screenshotMetaRows.map(mapScreenshotMeta),
     auditEntries: auditRows.map((r) =>
       mapAuditEntry(r, (auditChanges.get(String(r.id)) ?? []).map(mapAuditChange)),
     ),

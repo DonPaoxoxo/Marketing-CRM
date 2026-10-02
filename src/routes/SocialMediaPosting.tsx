@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Checkbox, Input, Label } from '@/components/ui/primitives';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/overlays';
 import { PostFormDialog } from '@/features/social-media-posts/PostFormDialog';
+import { ScreenshotCell } from '@/features/social-media-posts/ScreenshotCell';
 import { useBulkDeleteSocialPosts, useBulkSetSocialPostsStatus } from '@/features/social-media-posts/api';
 import { useCrmData, useUpdate } from '@/hooks/useData';
 import { useFilters } from '@/hooks/useFilters';
@@ -130,6 +131,12 @@ export default function SocialMediaPostingPage() {
 
   const openEdit = (p: SocialMediaPost) => { setEditing(p); setFormOpen(true); };
 
+  const screenshotByPostId = React.useMemo(
+    () => new Map((data?.socialPostScreenshots ?? []).map((s) => [s.postId, s])),
+    [data],
+  );
+  const mayEditPosts = can('edit:resources');
+
   const columns = React.useMemo<ColumnDef<SocialMediaPost, unknown>[]>(() => [
     {
       id: 'select', enableSorting: false, enableHiding: false,
@@ -154,6 +161,12 @@ export default function SocialMediaPostingPage() {
     },
     {
       id: 'platform', header: 'Social Media Platform', accessorFn: effectivePlatform,
+    },
+    {
+      id: 'screenshot', header: 'Screenshot', enableSorting: false,
+      cell: ({ row }) => (
+        <ScreenshotCell post={row.original} screenshot={screenshotByPostId.get(row.original.id)} canEdit={mayEditPosts} />
+      ),
     },
     {
       id: 'purpose', header: 'Purpose', accessorFn: (r) => r.purpose,
@@ -193,7 +206,7 @@ export default function SocialMediaPostingPage() {
         );
       },
     },
-  ], [can, lookups, allRowsSelected, selectedIds]);
+  ], [can, lookups, allRowsSelected, selectedIds, screenshotByPostId, mayEditPosts]);
 
   const postAudit = React.useMemo(
     () => (data?.auditEntries ?? []).filter((a) => a.recordType === 'Social Media Post' && a.recordId === historyFor?.id),

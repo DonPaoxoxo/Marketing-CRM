@@ -80,3 +80,30 @@ export const useDeleteReport = () => useReportMutation<{ id: string; reason: str
   ({ id, reason }, actor) => call<{ deleted: string }>(withActor(`/api/team-reports/${id}`, actor), { method: 'DELETE', body: JSON.stringify({ reason }) }),
   'Report deleted permanently',
 );
+
+/** Deletes several reports at once, one DELETE request per id. A single summary
+ *  toast rather than one per report, so selecting 20 reports doesn't flood the
+ *  corner with 20 identical notifications. */
+export function useBulkDeleteReports() {
+  const qc = useQueryClient();
+  const actor = useActorQuery();
+  return useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => call<{ deleted: string }>(withActor(`/api/team-reports/${id}`, actor), { method: 'DELETE', body: JSON.stringify({ reason }) })),
+      );
+      return { total: ids.length, failed: results.filter((r) => r.status === 'rejected').length };
+    },
+    onSuccess: ({ total, failed }) => {
+      qc.invalidateQueries({ queryKey: TEAM_REPORTS_KEY });
+      if (failed > 0) {
+        toast.error(`${total - failed} of ${total} report${total === 1 ? '' : 's'} deleted — ${failed} failed.`, {
+          description: 'Reports still showing were not deleted. Check your connection and try again for those.',
+        });
+      } else {
+        toast.success(`${total} report${total === 1 ? '' : 's'} deleted permanently`);
+      }
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}

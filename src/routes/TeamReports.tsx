@@ -1,18 +1,19 @@
 import * as React from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, ListChecks, Trash2, X } from 'lucide-react';
 import { PageHeader, SectionCard, EmptyState, ErrorState } from '@/components/common/bits';
+import { ConfirmWithReason } from '@/components/common/controls';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/overlays';
 import { Button } from '@/components/ui/button';
-import { Input, Label, NativeSelect, Skeleton } from '@/components/ui/primitives';
+import { Checkbox, Input, Label, NativeSelect, Skeleton } from '@/components/ui/primitives';
 import { useCrmData } from '@/hooks/useData';
 import { useSession } from '@/hooks/useSession';
 import { ROLE_PERMISSIONS } from '@/lib/permissions';
 import {
-  PERIOD_LABEL, REPORT_PERIODS, mayFileReports, mayReview, periodEndOf, periodLabel, periodStartOf,
+  PERIOD_LABEL, REPORT_PERIODS, mayDeleteReport, mayFileReports, mayReview, periodEndOf, periodLabel, periodStartOf,
   type ReportPeriod,
 } from '@/lib/team-reports';
 import { ReportCard, ReportForm, ReportStatusBadge } from '@/features/team-reports/ReportCard';
-import { useTeamReports } from '@/features/team-reports/api';
+import { useBulkDeleteReports, useTeamReports } from '@/features/team-reports/api';
 
 const localToday = () => {
   const d = new Date();
@@ -45,6 +46,25 @@ function PeriodTab({ period }: { period: ReportPeriod }) {
   const earlier = all
     .filter((r) => r.periodStart < start && (personFilter === 'all' || r.authorId === personFilter))
     .slice(0, 50);
+
+  /* ── Bulk select + delete, Earlier reports only ──────────────── */
+  const bulkDelete = useBulkDeleteReports();
+  const [selectMode, setSelectMode] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = React.useState(false);
+
+  // A filter or date change can drop rows out of view; stale picks from before
+  // that change should not be acted on.
+  React.useEffect(() => setSelectedIds(new Set()), [start, personFilter]);
+
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const toggleSelected = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
+  const allEarlierSelected = earlier.length > 0 && earlier.every((r) => selectedIds.has(r.id));
+  const toggleSelectAll = () => setSelectedIds(allEarlierSelected ? new Set() : new Set(earlier.map((r) => r.id)));
 
   // Everyone expected to report: active people who can edit records.
   const expected = (data?.teamMembers ?? []).filter((m) => m.active && ROLE_PERMISSIONS[m.role]?.includes('edit:resources'));
@@ -101,6 +121,18 @@ function PeriodTab({ period }: { period: ReportPeriod }) {
           <SectionCard
             title="Earlier reports"
             description={mayReview(person) ? 'Everyone’s reports before this period, newest first.' : 'Your reports before this period, newest first.'}
+            actions={mayDeleteReport(person) && earlier.length > 0 ? (
+              selectMode ? (
+                <>
+                  <Button size="sm" variant="danger" disabled={selectedIds.size === 0} onClick={() => setBulkDeleteOpen(true)}>
+                    <Trash2 /> Delete selected ({selectedIds.size})
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={exitSelectMode}><X /> Cancel</Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setSelectMode(true)}><ListChecks /> Select</Button>
+              )
+            ) : undefined}
           >
             {mayReview(person) && (
               <div className="mb-3 flex items-center gap-2 text-[13px]">
@@ -111,12 +143,36 @@ function PeriodTab({ period }: { period: ReportPeriod }) {
                 </NativeSelect>
               </div>
             )}
+            {selectMode && earlier.length > 0 && (
+              <label className="mb-2 flex items-center gap-2 text-[13px]">
+                <Checkbox checked={allEarlierSelected} onCheckedChange={toggleSelectAll} aria-label="Select all earlier reports shown" />
+                Select all ({earlier.length})
+              </label>
+            )}
             {earlier.length ? (
-              <div className="flex flex-col gap-2">{earlier.map((r) => <ReportCard key={r.id} report={r} />)}</div>
+              <div className="flex flex-col gap-2">
+                {earlier.map((r) => (
+                  <ReportCard key={r.id} report={r} selectable={selectMode} selected={selectedIds.has(r.id)} onToggleSelect={toggleSelected} />
+                ))}
+              </div>
             ) : <EmptyState title="No earlier reports" />}
           </SectionCard>
         </>
       )}
+
+      <ConfirmWithReason
+        open={bulkDeleteOpen}
+        onOpenChange={setBulkDeleteOpen}
+        title={`Delete ${selectedIds.size} report${selectedIds.size === 1 ? '' : 's'} permanently?`}
+        description="Each selected report, its files and all replies are erased from the database and cannot be recovered. The audit history keeps one line per report: who deleted it, when, and this reason."
+        confirmLabel={`Delete ${selectedIds.size} permanently`}
+        placeholder="Why are these reports being deleted? This line is kept in the audit history for each one."
+        hint="At least 10 characters. This cannot be undone."
+        onConfirm={async (reason) => {
+          await bulkDelete.mutateAsync({ ids: [...selectedIds], reason });
+          exitSelectMode();
+        }}
+      />
     </div>
   );
 }

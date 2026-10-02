@@ -1,7 +1,7 @@
 import * as React from 'react';
 import { CheckCircle2, Download, FileText, MessageSquareReply, Paperclip, Pencil, RotateCcw, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Badge, Field, Textarea } from '@/components/ui/primitives';
+import { Badge, Checkbox, Field, Textarea } from '@/components/ui/primitives';
 import { ConfirmWithReason } from '@/components/common/controls';
 import { useSession } from '@/hooks/useSession';
 import { ApiError } from '@/hooks/useData';
@@ -244,7 +244,13 @@ function Replies({ report }: { report: TeamReport }) {
   );
 }
 
-export function ReportCard({ report, defaultOpen = false }: { report: TeamReport; defaultOpen?: boolean }) {
+export function ReportCard({
+  report, defaultOpen = false, selectable = false, selected = false, onToggleSelect,
+}: {
+  report: TeamReport; defaultOpen?: boolean;
+  /** Bulk-selection mode, offered on the Earlier reports list. */
+  selectable?: boolean; selected?: boolean; onToggleSelect?: (id: string) => void;
+}) {
   const { actorId, role, permissions } = useSession();
   const person = { id: actorId, role, permissions };
   const [open, setOpen] = React.useState(defaultOpen);
@@ -256,19 +262,29 @@ export function ReportCard({ report, defaultOpen = false }: { report: TeamReport
 
   return (
     <article className="rounded-lg border border-border bg-card" aria-label={`${report.authorName} — ${periodLabel(report.period, report.periodStart)}`}>
-      <button type="button" className="flex w-full flex-wrap items-center justify-between gap-2 px-4 py-3 text-left" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
-        <span className="flex flex-col">
-          <span className="text-[14px] font-medium">{report.authorName}</span>
-          <span className="text-[12px] text-muted-foreground">
-            {periodLabel(report.period, report.periodStart)} · updated {new Date(report.updatedAt).toLocaleString()}
+      <div className="flex items-center gap-1">
+        {selectable && (
+          <Checkbox
+            checked={selected}
+            onCheckedChange={() => onToggleSelect?.(report.id)}
+            aria-label={`Select ${report.authorName}'s report, ${periodLabel(report.period, report.periodStart)}`}
+            className="ml-4"
+          />
+        )}
+        <button type="button" className="flex flex-1 flex-wrap items-center justify-between gap-2 px-4 py-3 text-left" onClick={() => setOpen((v) => !v)} aria-expanded={open}>
+          <span className="flex flex-col">
+            <span className="text-[14px] font-medium">{report.authorName}</span>
+            <span className="text-[12px] text-muted-foreground">
+              {periodLabel(report.period, report.periodStart)} · updated {new Date(report.updatedAt).toLocaleString()}
+            </span>
           </span>
-        </span>
-        <span className="flex items-center gap-2">
-          {report.files.length > 0 && <Badge tone="outline"><Paperclip className="h-3 w-3" aria-hidden="true" /> {report.files.length}</Badge>}
-          {report.replies.length > 0 && <Badge tone="outline"><MessageSquareReply className="h-3 w-3" aria-hidden="true" /> {report.replies.length}</Badge>}
-          <ReportStatusBadge status={report.status} />
-        </span>
-      </button>
+          <span className="flex items-center gap-2">
+            {report.files.length > 0 && <Badge tone="outline"><Paperclip className="h-3 w-3" aria-hidden="true" /> {report.files.length}</Badge>}
+            {report.replies.length > 0 && <Badge tone="outline"><MessageSquareReply className="h-3 w-3" aria-hidden="true" /> {report.replies.length}</Badge>}
+            <ReportStatusBadge status={report.status} />
+          </span>
+        </button>
+      </div>
 
       {open && (
         <div className="flex flex-col gap-3 border-t border-border px-4 py-3">

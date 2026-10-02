@@ -112,7 +112,7 @@ export function useCrmData() {
 
 /* ── Mutations ────────────────────────────────────────────────── */
 
-type Entity = 'sims' | 'agents' | 'social-accounts' | 'assignments' | 'credentials' | 'domains' | 'content-posts' | 'pakistan-competitors';
+type Entity = 'sims' | 'agents' | 'social-accounts' | 'assignments' | 'credentials' | 'domains' | 'content-posts' | 'pakistan-competitors' | 'social-media-posts';
 
 export function useCreate<T>(entity: Entity, label = 'Record') {
   const qc = useQueryClient();

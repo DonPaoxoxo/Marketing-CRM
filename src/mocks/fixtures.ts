@@ -11,7 +11,7 @@
 
 import type {
   Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, Sim, SocialAccount, TeamMember,
+  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
 
@@ -467,6 +467,41 @@ export const pakistanCompetitors: CompetitorRecord[] = COMPETITOR_SEED.map((c, i
   archived: false,
   createdAt: stamp(-int(5, 60)),
   updatedAt: stamp(-int(0, 5)),
+}));
+
+/* ── Social Media Posting ─────────────────────────────────────── */
+
+const SOCIAL_POST_SEED: {
+  member: string; platform: SocialMediaPost['platform']; customPlatform?: string;
+  purpose: SocialMediaPost['purpose']; customPurpose?: string; offset: number; archived?: boolean;
+}[] = [
+  { member: 'TM-01', platform: 'Facebook', purpose: 'Daily Posting', offset: 0 },
+  { member: 'TM-02', platform: 'Instagram', purpose: 'Daily Posting', offset: 0 },
+  { member: 'TM-04', platform: 'Facebook', purpose: 'Event', offset: 0 },
+  { member: 'TM-05', platform: 'Telegram', purpose: 'Others', customPurpose: 'Promo blast', offset: 0 },
+  { member: 'TM-04', platform: 'Pinterest', purpose: 'Daily Posting', offset: -1 },
+  { member: 'TM-06', platform: 'WhatsApp', purpose: 'Daily Posting', offset: -1 },
+  { member: 'TM-02', platform: 'Others', customPlatform: 'Snapchat', purpose: 'Daily Posting', offset: -3 },
+  { member: 'TM-01', platform: 'Twitter/X', purpose: 'Event', offset: -3 },
+  { member: 'TM-05', platform: 'YouTube', purpose: 'Daily Posting', offset: -6, archived: true },
+];
+
+export const socialMediaPosts: SocialMediaPost[] = SOCIAL_POST_SEED.map((s, i) => ({
+  id: `SMP-${pad(i + 1)}`,
+  marketingMemberId: s.member,
+  purpose: s.purpose,
+  customPurpose: s.customPurpose ?? '',
+  platform: s.platform,
+  customPlatform: s.customPlatform ?? '',
+  postDate: dayOffset(s.offset),
+  postLink: `https://example-internal.test/post/${i + 1}`,
+  notes: '',
+  status: s.archived ? 'archived' : 'active',
+  archivedAt: s.archived ? stamp(s.offset + 1) : null,
+  archivedById: s.archived ? 'TM-01' : null,
+  createdById: s.member,
+  createdAt: stamp(s.offset),
+  updatedAt: stamp(s.offset),
 }));
 
 export const auditEntries: AuditEntry[] = [

@@ -170,6 +170,20 @@ export const COMPETITOR_COLUMNS: ColumnMap = {
   archived: 'archived',
 };
 
+export const SOCIAL_POST_COLUMNS: ColumnMap = {
+  marketingMemberId: 'marketing_member_id',
+  purpose: 'purpose',
+  customPurpose: 'custom_purpose',
+  platform: 'platform',
+  customPlatform: 'custom_platform',
+  postDate: 'post_date',
+  postLink: 'post_link',
+  notes: 'notes',
+  status: 'status',
+  archivedAt: nullable('archived_at'),
+  archivedById: nullable('archived_by'),
+};
+
 /* ── Statement building ───────────────────────────────────────── */
 
 function coerce(value: unknown, spec: ColumnSpec): unknown {

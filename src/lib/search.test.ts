@@ -8,11 +8,15 @@ const corpus: SearchCorpus = {
   agents: seed.agents,
   domains: seed.domains,
   pakistanCompetitors: seed.pakistanCompetitors,
+  socialMediaPosts: seed.socialMediaPosts,
   brands: seed.brands,
   pages: [{ to: '/domains', label: 'Domains', description: 'Domain register' }],
 };
 
-const lookups = { platformName: (id: string) => seed.platforms.find((p) => p.id === id)?.name ?? id };
+const lookups = {
+  platformName: (id: string) => seed.platforms.find((p) => p.id === id)?.name ?? id,
+  personName: (id: string | null) => seed.teamMembers.find((m) => m.id === id)?.name ?? id ?? '—',
+};
 const run = (q: string, showContact = true) => searchRecords(corpus, q, { lookups, showContact });
 
 describe('a text query never matches records through the phone field', () => {

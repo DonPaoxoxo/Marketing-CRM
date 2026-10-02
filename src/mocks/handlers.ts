@@ -5,9 +5,11 @@
 import { HttpResponse, http, delay } from 'msw';
 import { db, diffRecords, nextId, recordAudit } from './db';
 import { ROLES } from '@/lib/types';
-import type {
-  AgentProof, Agent, Assignment, AuditEntry, CompetitorRecord, ContentPost, CredentialRef, DomainRecord, FollowerSnapshot,
-  RoleName, Sim, SocialAccount, TeamMember,
+import {
+  SOCIAL_POST_PLATFORM, SOCIAL_POST_PURPOSE,
+  type AgentProof, type Agent, type Assignment, type AuditEntry, type CompetitorRecord, type ContentPost,
+  type CredentialRef, type DomainRecord, type FollowerSnapshot, type RoleName, type Sim, type SocialAccount,
+  type SocialMediaPost, type TeamMember,
 } from '@/lib/types';
 import { checkAssignmentConflict } from '@/lib/rules';
 import { teamReportHandlers } from './team-reports';
@@ -25,7 +27,7 @@ import { emailKey, telegramKey } from '@/lib/identity';
 import { normalizeDomain, normalizePhone } from '@/lib/utils';
 import {
   ACCOUNT_FIELDS, AGENT_FIELDS, ASSIGNMENT_FIELDS, COMPETITOR_FIELDS, CONTENT_POST_FIELDS, CREDENTIAL_FIELDS,
-  DOMAIN_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, sanitizeFields, sanitizeText, sanitizeUrl,
+  DOMAIN_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, SOCIAL_POST_FIELDS, sanitizeFields, sanitizeText, sanitizeUrl,
 } from '@/lib/sanitize';
 
 /** Absolute base so the same handlers match in the browser (against the page's
@@ -129,6 +131,30 @@ function agentChannelClash(urls: string[], exceptId?: string) {
   return null;
 }
 
+/** Purpose/platform plus their matching custom text — mirrors
+ *  applyPurposeAndPlatform in server/routes/social-media-posts.ts. Only runs
+ *  when the request actually touches one of these four fields, so an
+ *  archive/restore patch (just `status` + a reason) is untouched by it. */
+function applySocialPostExtras(body: Partial<SocialMediaPost> & { reason?: string }, before?: SocialMediaPost) {
+  if (body.purpose !== undefined || body.customPurpose !== undefined) {
+    const purpose = body.purpose ?? before?.purpose;
+    if (!purpose || !SOCIAL_POST_PURPOSE.includes(purpose)) return bad('Select a valid purpose.', 400, { field: 'purpose' });
+    const customPurpose = (body.purpose !== undefined ? body.customPurpose ?? '' : body.customPurpose ?? before?.customPurpose ?? '').trim();
+    if (purpose === 'Others' && !customPurpose) return bad('Write the custom purpose.', 400, { field: 'customPurpose' });
+    body.purpose = purpose;
+    body.customPurpose = purpose === 'Others' ? customPurpose : '';
+  }
+  if (body.platform !== undefined || body.customPlatform !== undefined) {
+    const platform = body.platform ?? before?.platform;
+    if (!platform || !SOCIAL_POST_PLATFORM.includes(platform)) return bad('Select a valid platform.', 400, { field: 'platform' });
+    const customPlatform = (body.platform !== undefined ? body.customPlatform ?? '' : body.customPlatform ?? before?.customPlatform ?? '').trim();
+    if (platform === 'Others' && !customPlatform) return bad('Write the custom platform.', 400, { field: 'customPlatform' });
+    body.platform = platform;
+    body.customPlatform = platform === 'Others' ? customPlatform : '';
+  }
+  return null;
+}
+
 export const handlers = [
   /* ── Bootstrap: the whole synthetic dataset in one round trip ── */
   http.get(`${API}/bootstrap`, async () => {
@@ -149,6 +175,7 @@ export const handlers = [
       contentPosts: db.contentPosts,
       agentProofs: db.agentProofs,
       pakistanCompetitors: db.pakistanCompetitors,
+      socialMediaPosts: db.socialMediaPosts,
       auditEntries: db.auditEntries,
     });
   }),
@@ -707,6 +734,118 @@ export const handlers = [
       });
     }
     return HttpResponse.json(rec);
+  }),
+
+  /* ── Social Media Posting ─────────────────────────────────── */
+
+  http.post(`${API}/social-media-posts`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'edit:resources')) return noAccess();
+    const body = sanitizeFields((await request.json()) as Partial<SocialMediaPost> & { reason?: string }, SOCIAL_POST_FIELDS);
+    if (!body.marketingMemberId) return bad('Select who posted this.', 400, { field: 'marketingMemberId' });
+    if (!body.purpose) return bad('Select a purpose.', 400, { field: 'purpose' });
+    if (!body.platform) return bad('Select a platform.', 400, { field: 'platform' });
+    if (!body.postDate) return bad('A date is required.', 400, { field: 'postDate' });
+    const postLink = (body.postLink ?? '').trim();
+    if (!postLink) return bad('A post link is required.', 400, { field: 'postLink' });
+    const extrasProblem = applySocialPostExtras(body);
+    if (extrasProblem) return extrasProblem;
+
+    const who = actor(request);
+    const rec: SocialMediaPost = {
+      id: nextId('SMP', db.socialMediaPosts),
+      marketingMemberId: body.marketingMemberId,
+      purpose: body.purpose,
+      customPurpose: body.customPurpose ?? '',
+      platform: body.platform,
+      customPlatform: body.customPlatform ?? '',
+      postDate: body.postDate,
+      postLink,
+      notes: body.notes ?? '',
+      status: 'active',
+      archivedAt: null,
+      archivedById: null,
+      createdById: who.id || null,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    db.socialMediaPosts.unshift(rec);
+    recordAudit({
+      actor: who,
+      recordType: 'Social Media Post',
+      recordId: rec.id,
+      recordLabel: `${rec.id} — ${rec.platform}`,
+      action: 'create',
+      reason: body.reason ?? 'Post logged',
+      changes: [{ field: 'postLink', from: null, to: postLink }],
+    });
+    return HttpResponse.json(rec, { status: 201 });
+  }),
+
+  http.patch(`${API}/social-media-posts/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'edit:resources')) return noAccess();
+    const rec = db.socialMediaPosts.find((p) => p.id === params.id);
+    if (!rec) return bad('Post not found.', 404);
+    const body = sanitizeFields((await request.json()) as Partial<SocialMediaPost> & { reason?: string }, SOCIAL_POST_FIELDS);
+    if (body.postLink !== undefined) {
+      body.postLink = body.postLink.trim();
+      if (!body.postLink) return bad('A post link is required.', 400, { field: 'postLink' });
+    }
+    const extrasProblem = applySocialPostExtras(body, rec);
+    if (extrasProblem) return extrasProblem;
+
+    const changingStatus = body.status !== undefined && body.status !== rec.status;
+    if (changingStatus) {
+      if (!may(request, 'archive:records')) {
+        return bad(`Your role (${actor(request).role}) cannot ${body.status === 'archived' ? 'archive' : 'restore'} records.`, 403);
+      }
+      if (!body.reason?.trim()) {
+        return bad(`${body.status === 'archived' ? 'Archiving' : 'Restoring'} needs a written reason.`, 400, { field: 'reason' });
+      }
+    }
+
+    const { reason, ...patch } = body;
+    if (changingStatus) {
+      patch.archivedAt = patch.status === 'archived' ? now() : null;
+      patch.archivedById = patch.status === 'archived' ? actor(request).id : null;
+    }
+    const changes = diffRecords(rec as unknown as Record<string, unknown>, patch as Record<string, unknown>);
+    Object.assign(rec, patch, { updatedAt: now() });
+    if (changes.length) {
+      recordAudit({
+        actor: actor(request),
+        recordType: 'Social Media Post',
+        recordId: rec.id,
+        recordLabel: `${rec.id} — ${rec.platform}`,
+        action: changingStatus ? (patch.status === 'archived' ? 'archive' : 'restore') : 'update',
+        reason: reason ?? 'Post updated',
+        changes,
+      });
+    }
+    return HttpResponse.json(rec);
+  }),
+
+  http.delete(`${API}/social-media-posts/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'archive:records')) return noAccess();
+    const index = db.socialMediaPosts.findIndex((p) => p.id === params.id);
+    if (index === -1) return bad('Post not found.', 404);
+    const rec = db.socialMediaPosts[index];
+    const body = (await request.json().catch(() => ({}))) as { reason?: string };
+    const reason = (body.reason ?? '').trim();
+    if (!reason) return bad('Deleting a post needs a written reason.', 400, { field: 'reason' });
+    db.socialMediaPosts.splice(index, 1);
+    recordAudit({
+      actor: actor(request),
+      recordType: 'Social Media Post',
+      recordId: rec.id,
+      recordLabel: `${rec.id} — ${rec.platform}`,
+      action: 'delete',
+      reason,
+      changes: [],
+    });
+    return HttpResponse.json({ deleted: rec.id });
   }),
 
   /* ── Follower snapshots ───────────────────────────────────── */

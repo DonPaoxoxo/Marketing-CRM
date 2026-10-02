@@ -248,6 +248,40 @@ export interface CompetitorRecord {
   updatedAt: string;
 }
 
+export const SOCIAL_POST_PURPOSE = ['Daily Posting', 'Event', 'Others'] as const;
+export type SocialPostPurpose = (typeof SOCIAL_POST_PURPOSE)[number];
+
+/** The usual places a post goes, offered as choices. "Others" plus a typed-in
+ *  name covers anything not on the list, the same way SIM_CREATED_FOR does. */
+export const SOCIAL_POST_PLATFORM = ['Facebook', 'Instagram', 'Pinterest', 'Twitter/X', 'YouTube', 'Telegram', 'WhatsApp', 'Others'] as const;
+export type SocialPostPlatform = (typeof SOCIAL_POST_PLATFORM)[number];
+
+export const SOCIAL_POST_STATUS = ['active', 'archived'] as const;
+export type SocialPostStatus = (typeof SOCIAL_POST_STATUS)[number];
+
+/** One logged social post: who posted it, where, why, and a link to see it.
+ *  A posting log, not a performance tracker — see FollowerSnapshot/ContentPost
+ *  in Growth for engagement figures. */
+export interface SocialMediaPost {
+  id: ID;                       // SMP-0001
+  marketingMemberId: ID;        // FK -> TeamMember, one of the active marketing team
+  purpose: SocialPostPurpose;
+  /** Required, and only meaningful, when purpose is "Others". */
+  customPurpose: string;
+  platform: SocialPostPlatform;
+  /** Required, and only meaningful, when platform is "Others". */
+  customPlatform: string;
+  postDate: string;             // YYYY-MM-DD — the day the post represents
+  postLink: string;
+  notes: string;
+  status: SocialPostStatus;
+  archivedAt: string | null;
+  archivedById: ID | null;
+  createdById: ID | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
 /** One observed follower total for one account on one day.
  *
  *  The *total* is recorded, never the gain — gain is derived against the previous
@@ -378,6 +412,7 @@ export interface Bootstrap {
   contentPosts: ContentPost[];
   agentProofs: AgentProof[];
   pakistanCompetitors: CompetitorRecord[];
+  socialMediaPosts: SocialMediaPost[];
   auditEntries: AuditEntry[];
 }
 

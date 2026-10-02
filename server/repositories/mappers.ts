@@ -8,7 +8,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import type {
   Agent, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, Sim, SocialAccount, TeamMember,
+  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, TeamMember,
 } from '../../src/lib/types';
 
 /* ── Column coercion ──────────────────────────────────────────────
@@ -255,6 +255,24 @@ export const mapCompetitor = (r: RowDataPacket): CompetitorRecord => ({
   others: text(r.others),
   notes: text(r.notes),
   archived: bool(r.archived),
+  createdAt: isoRequired(r.created_at),
+  updatedAt: isoRequired(r.updated_at),
+});
+
+export const mapSocialPost = (r: RowDataPacket): SocialMediaPost => ({
+  id: String(r.id),
+  marketingMemberId: String(r.marketing_member_id),
+  purpose: r.purpose as SocialMediaPost['purpose'],
+  customPurpose: text(r.custom_purpose),
+  platform: r.platform as SocialMediaPost['platform'],
+  customPlatform: text(r.custom_platform),
+  postDate: dateRequired(r.post_date),
+  postLink: text(r.post_link),
+  notes: text(r.notes),
+  status: r.status as SocialMediaPost['status'],
+  archivedAt: iso(r.archived_at),
+  archivedById: id(r.archived_by),
+  createdById: id(r.created_by),
   createdAt: isoRequired(r.created_at),
   updatedAt: isoRequired(r.updated_at),
 });

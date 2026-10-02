@@ -15,7 +15,7 @@
 
 import type {
   Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, Sim, SocialAccount, TeamMember,
+  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, TeamMember,
 } from '../lib/types';
 
 /* ── Configuration ────────────────────────────────────────────── */
@@ -53,4 +53,5 @@ export const followerSnapshots: FollowerSnapshot[] = [];
 export const contentPosts: ContentPost[] = [];
 export const agentProofs: AgentProof[] = [];
 export const pakistanCompetitors: CompetitorRecord[] = [];
+export const socialMediaPosts: SocialMediaPost[] = [];
 export const auditEntries: AuditEntry[] = [];

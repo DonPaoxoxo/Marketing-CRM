@@ -19,6 +19,7 @@ const base = (): Bootstrap => structuredClone({
   contentPosts: fixtures.contentPosts,
   agentProofs: [],
   pakistanCompetitors: fixtures.pakistanCompetitors,
+  socialMediaPosts: fixtures.socialMediaPosts,
   auditEntries: fixtures.auditEntries,
 });
 
@@ -26,7 +27,7 @@ const empty = (): Bootstrap => ({
   countries: fixtures.countries, platforms: fixtures.platforms,
   brands: [], projects: [], teamMembers: [], sims: [], agents: [], socialAccounts: [],
   credentials: [], assignments: [], domains: [], followerSnapshots: [], contentPosts: [],
-  agentProofs: [], pakistanCompetitors: [], auditEntries: [],
+  agentProofs: [], pakistanCompetitors: [], socialMediaPosts: [], auditEntries: [],
 });
 
 const find = (data: Bootstrap, recordId: string, field: string) =>

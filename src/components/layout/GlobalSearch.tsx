@@ -42,11 +42,12 @@ export function GlobalSearch() {
         agents: data.agents,
         domains: data.domains,
         pakistanCompetitors: data.pakistanCompetitors,
+        socialMediaPosts: data.socialMediaPosts,
         brands: data.brands,
         pages: ALL_NAV_ITEMS.filter((n) => !n.permission || can(n.permission)).map((n) => ({ to: n.to, label: n.label, description: n.description })),
       },
       q,
-      { lookups: { platformName: lookups.platformName }, showContact },
+      { lookups: { platformName: lookups.platformName, personName: lookups.personName }, showContact },
     );
   }, [q, data, lookups, showContact, can]);
 

@@ -3,12 +3,12 @@
  *  Extracted from the global-search component so the matching rules are testable
  *  on their own — they are easy to get subtly wrong (see the digit-guard below). */
 
-import type { Agent, Brand, CompetitorRecord, DomainRecord, Sim, SocialAccount } from './types';
+import type { Agent, Brand, CompetitorRecord, DomainRecord, Sim, SocialAccount, SocialMediaPost } from './types';
 import { maskPhone, normalizePhone } from './utils';
 
 export interface SearchHit {
   id: string;
-  group: 'SIMs' | 'Social accounts' | 'Agents' | 'Domains' | 'Pakistan Competitors' | 'Brands' | 'Pages';
+  group: 'SIMs' | 'Social accounts' | 'Agents' | 'Domains' | 'Pakistan Competitors' | 'Social Media Posts' | 'Brands' | 'Pages';
   title: string;
   subtitle: string;
   to: string;
@@ -20,12 +20,14 @@ export interface SearchCorpus {
   agents: Agent[];
   domains: DomainRecord[];
   pakistanCompetitors: CompetitorRecord[];
+  socialMediaPosts: SocialMediaPost[];
   brands: Brand[];
   pages: { to: string; label: string; description: string }[];
 }
 
 export interface SearchLookups {
   platformName: (id: string) => string;
+  personName: (id: string | null) => string;
 }
 
 export const MIN_QUERY_LENGTH = 2;
@@ -112,6 +114,19 @@ export function searchRecords(
         title: c.linkOrDomain,
         subtitle: `${c.id} · ${lookups.platformName(c.platformId)}`,
         to: `/pakistan-competitors?search=${encodeURIComponent(c.linkOrDomain)}`,
+      });
+    }
+  });
+
+  corpus.socialMediaPosts.forEach((p) => {
+    if (p.status !== 'active') return;
+    if (has(p.id) || has(lookups.personName(p.marketingMemberId)) || has(p.postLink) || has(p.customPurpose) || has(p.customPlatform) || has(p.notes)) {
+      hit({
+        id: p.id,
+        group: 'Social Media Posts',
+        title: `${lookups.personName(p.marketingMemberId)} — ${p.platform === 'Others' ? p.customPlatform : p.platform}`,
+        subtitle: `${p.id} · ${p.postDate} · ${p.purpose}`,
+        to: `/social-media-posting?search=${encodeURIComponent(p.postLink)}`,
       });
     }
   });

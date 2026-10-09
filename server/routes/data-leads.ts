@@ -5,6 +5,7 @@
 
 import { Router } from 'express';
 import type { RowDataPacket } from 'mysql2/promise';
+import { isAdmin } from '../../src/lib/access';
 import { DATA_LEAD_ASSIGNEE, type DataLeadRecord } from '../../src/lib/types';
 import { DATA_LEAD_FIELDS, sanitizeFields, sanitizeText } from '../../src/lib/sanitize';
 import { leadChannelKey, validateLeadRow, type LeadImportKey } from '../../src/lib/lead-import';
@@ -76,6 +77,30 @@ dataLeadsRouter.patch('/:id', requirePermission('access:data-leads'), asyncHandl
   });
 
   res.json(record);
+}));
+
+/** Permanent. Unlike every other register here, a lead is never archived —
+ *  there is no "restore" for a scraped contact — so deleting one is reserved
+ *  for the System Administrator and needs a written reason, the same bar
+ *  Team Reports' permanent delete sets (server/routes/team-reports.ts). */
+dataLeadsRouter.delete('/:id', requirePermission('access:data-leads'), asyncHandler(async (req, res) => {
+  if (!isAdmin(req.user?.role)) throw forbidden('Only the System Administrator can delete leads.');
+  const id = String(req.params.id);
+  const before = await readDataLead(id);
+  if (!before) throw notFound('Lead not found.');
+
+  const reason = sanitizeText(bodyOf<{ reason?: unknown }>(req).reason, 500);
+  if (!reason) throw badRequest('Deleting a lead needs a written reason.', { field: 'reason' });
+
+  const actor = actorOf(req);
+  await tx(async (conn) => {
+    await execute('DELETE FROM data_leads WHERE id = ?', [id], conn);
+    await recordAudit(conn, {
+      actor, recordType: 'Data Lead', recordId: id, recordLabel: before.creator, action: 'delete', reason,
+    });
+  });
+
+  res.json({ deleted: id });
 }));
 
 interface ImportBody {

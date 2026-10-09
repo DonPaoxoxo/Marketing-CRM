@@ -138,6 +138,42 @@ describe('Data Leads register', () => {
     expect(db.dataLeads.find((l) => l.creator === 'Online Help')?.contactedAt).toBe(before);
   });
 
+  it('lets the System Administrator select leads and permanently delete them', async () => {
+    mount(); // default preview role is System Administrator
+    await screen.findByText('DK Online Tech');
+    const before = db.dataLeads.length;
+
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select DK Online Tech' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select Tamil Tech Today' }));
+    expect(screen.getByRole('button', { name: /Delete selected \(2\)/ })).toBeTruthy();
+
+    fireEvent.click(screen.getByRole('button', { name: /Delete selected \(2\)/ }));
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Delete 2 leads permanently/)).toBeTruthy();
+
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: 'Duplicate scrape, cleaning up the register.' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete 2 permanently/ }));
+
+    await waitFor(() => expect(db.dataLeads.length).toBe(before - 2));
+    expect(db.dataLeads.find((l) => l.creator === 'DK Online Tech')).toBeUndefined();
+    expect(db.dataLeads.find((l) => l.creator === 'Tamil Tech Today')).toBeUndefined();
+    await waitFor(() => expect(screen.queryByText('DK Online Tech')).toBeNull());
+    // Select mode exits after a successful delete.
+    expect(screen.getByRole('button', { name: /^Select$/ })).toBeTruthy();
+  });
+
+  it('"Select all" picks every currently filtered lead, not just the page', async () => {
+    mount();
+    await screen.findByText('DK Online Tech');
+    fireEvent.change(screen.getByLabelText('Country'), { target: { value: 'PK' } }); // 3 leads
+    await waitFor(() => expect(screen.getByText(/^3 records$/)).toBeTruthy());
+
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select all leads shown' }));
+    expect(screen.getByRole('button', { name: /Delete selected \(3\)/ })).toBeTruthy();
+  });
+
   it('opens the bulk upload dialog with the expected column list', async () => {
     mount();
     await screen.findByText('DK Online Tech');

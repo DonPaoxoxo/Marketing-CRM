@@ -851,6 +851,23 @@ export const handlers = [
     return HttpResponse.json(rec);
   }),
 
+  http.delete(`${API}/data-leads/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:data-leads')) return noAccess();
+    const who = actor(request);
+    if (who.role !== SYSTEM_ADMIN_ROLE) return bad('Only the System Administrator can delete leads.', 403);
+    const index = db.dataLeads.findIndex((l) => l.id === params.id);
+    if (index === -1) return bad('Lead not found.', 404);
+    const body = (await request.json()) as { reason?: unknown };
+    const reason = sanitizeText(body.reason, 500);
+    if (!reason) return bad('Deleting a lead needs a written reason.', 400, { field: 'reason' });
+    const [rec] = db.dataLeads.splice(index, 1);
+    recordAudit({
+      actor: who, recordType: 'Data Lead', recordId: rec.id, recordLabel: rec.creator, action: 'delete', reason, changes: [],
+    });
+    return HttpResponse.json({ deleted: rec.id });
+  }),
+
   http.post(`${API}/data-leads/import`, async ({ request }) => {
     await LATENCY();
     if (!may(request, 'access:data-leads')) return noAccess();

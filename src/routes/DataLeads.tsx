@@ -1,16 +1,17 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { AtSign, Mail, Send, Upload } from 'lucide-react';
+import { AtSign, ListChecks, Mail, Send, Trash2, Upload, X } from 'lucide-react';
 import { ErrorState, PageHeader, SafeExternalLink, SectionCard, StatusBadge } from '@/components/common/bits';
 import { DataTable } from '@/components/common/DataTable';
-import { ExportButton, FilterBar, FilterSelect, SearchInput } from '@/components/common/controls';
-import { Badge, NativeSelect } from '@/components/ui/primitives';
+import { ConfirmWithReason, ExportButton, FilterBar, FilterSelect, SearchInput } from '@/components/common/controls';
+import { Badge, Checkbox, NativeSelect } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { LeadImportDialog } from '@/features/data-leads/LeadImportDialog';
 import { LeadDetailDialog } from '@/features/data-leads/LeadDetailDialog';
-import { useCrmData, useUpdate } from '@/hooks/useData';
+import { useBulkDeleteDataLeads, useCrmData, useUpdate } from '@/hooks/useData';
 import { useFilters } from '@/hooks/useFilters';
 import { useSession } from '@/hooks/useSession';
+import { isAdmin } from '@/lib/access';
 import { instagramLinkIn, promoConfidenceTone, telegramLinkIn } from '@/lib/leads';
 import { displayUrl, maskEmail } from '@/lib/utils';
 import { DATA_LEAD_ASSIGNEE, DATA_LEAD_STATUS, type DataLeadRecord } from '@/lib/types';
@@ -20,10 +21,23 @@ const DEFAULTS = { search: '', platform: 'all', country: 'all', status: 'all', a
 export default function DataLeadsPage() {
   const { data, lookups, isLoading, error, refetch } = useCrmData();
   const { values, set, clear, activeCount } = useFilters(DEFAULTS);
-  const { can, showContactDetails: showContact } = useSession();
+  const { can, role, showContactDetails: showContact } = useSession();
   const assign = useUpdate<DataLeadRecord>('data-leads', 'Lead');
+  const bulkDelete = useBulkDeleteDataLeads();
+  const mayDelete = isAdmin(role);
   const [bulkOpen, setBulkOpen] = React.useState(false);
   const [selectedId, setSelectedId] = React.useState<string | undefined>();
+
+  /* ── Select + permanently delete — System Administrator only ──── */
+  const [selectMode, setSelectMode] = React.useState(false);
+  const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const exitSelectMode = () => { setSelectMode(false); setSelectedIds(new Set()); };
+  const toggleSelected = (id: string) => setSelectedIds((prev) => {
+    const next = new Set(prev);
+    if (next.has(id)) next.delete(id); else next.add(id);
+    return next;
+  });
 
   const leads = data?.dataLeads ?? [];
   // Looked up fresh each render, not frozen at click time — marking a lead
@@ -45,7 +59,23 @@ export default function DataLeadsPage() {
     });
   }, [leads, values, showContact]);
 
+  // A filter change can drop rows out of view; stale picks from before that
+  // change must not be acted on by "Delete selected".
+  React.useEffect(() => setSelectedIds(new Set()), [values]);
+
+  const allFilteredSelected = filtered.length > 0 && filtered.every((l) => selectedIds.has(l.id));
+  const toggleSelectAll = () => setSelectedIds(allFilteredSelected ? new Set() : new Set(filtered.map((l) => l.id)));
+
   const columns = React.useMemo<ColumnDef<DataLeadRecord, unknown>[]>(() => [
+    ...(selectMode ? [{
+      id: 'select', enableSorting: false, enableHiding: false,
+      header: () => <Checkbox checked={allFilteredSelected} onCheckedChange={toggleSelectAll} aria-label="Select all leads shown" />,
+      cell: ({ row }: { row: { original: DataLeadRecord } }) => (
+        <div onClick={(e) => e.stopPropagation()}>
+          <Checkbox checked={selectedIds.has(row.original.id)} onCheckedChange={() => toggleSelected(row.original.id)} aria-label={`Select ${row.original.creator}`} />
+        </div>
+      ),
+    } satisfies ColumnDef<DataLeadRecord, unknown>] : []),
     {
       id: 'creator', header: 'Creator', accessorKey: 'creator',
       cell: ({ row }) => (
@@ -119,7 +149,9 @@ export default function DataLeadsPage() {
       id: 'status', header: 'Status', accessorKey: 'status',
       cell: ({ row }) => <StatusBadge kind="dataLead" value={row.original.status} />,
     },
-  ], [lookups, can, assign]);
+  // toggleSelectAll closes over `filtered`, so it must stay a dependency even
+  // though it is not referenced by name in this callback.
+  ], [lookups, can, assign, selectMode, selectedIds, allFilteredSelected, filtered]);
 
   if (error) return <ErrorState message={error.message} onRetry={() => refetch()} />;
 
@@ -160,6 +192,18 @@ export default function DataLeadsPage() {
               title={can('import:records') ? 'Add many leads from a scraper sheet' : 'Your role cannot import records.'}>
               <Upload /> Bulk upload
             </Button>
+            {mayDelete && filtered.length > 0 && (
+              selectMode ? (
+                <>
+                  <Button size="sm" variant="danger" disabled={selectedIds.size === 0} onClick={() => setDeleteOpen(true)}>
+                    <Trash2 /> Delete selected ({selectedIds.size})
+                  </Button>
+                  <Button size="sm" variant="ghost" onClick={exitSelectMode}><X /> Cancel</Button>
+                </>
+              ) : (
+                <Button size="sm" variant="outline" onClick={() => setSelectMode(true)}><ListChecks /> Select</Button>
+              )
+            )}
           </>
         }
       />
@@ -193,6 +237,20 @@ export default function DataLeadsPage() {
 
       <LeadImportDialog open={bulkOpen} onOpenChange={setBulkOpen} />
       <LeadDetailDialog lead={selected} onOpenChange={(v) => !v && setSelectedId(undefined)} />
+
+      <ConfirmWithReason
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Delete ${selectedIds.size} lead${selectedIds.size === 1 ? '' : 's'} permanently?`}
+        description="Each selected lead is erased from the database and cannot be recovered — leads have no archive to restore from. The audit history keeps one line per lead: who deleted it, when, and this reason."
+        confirmLabel={`Delete ${selectedIds.size} permanently`}
+        placeholder="Why are these leads being deleted? This line is kept in the audit history for each one."
+        hint="At least 10 characters. This cannot be undone."
+        onConfirm={async (reason) => {
+          await bulkDelete.mutateAsync({ ids: [...selectedIds], reason });
+          exitSelectMode();
+        }}
+      />
     </div>
   );
 }

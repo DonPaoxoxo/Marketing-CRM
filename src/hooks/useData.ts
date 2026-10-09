@@ -195,6 +195,33 @@ export function useLeadImportCommit() {
   });
 }
 
+/** Deletes several Data Leads at once, one DELETE request per id — the same
+ *  fan-out Team Reports uses — so a failure on one lead does not block the
+ *  rest, and selecting many leads produces one summary toast, not one each. */
+export function useBulkDeleteDataLeads() {
+  const qc = useQueryClient();
+  const actorQuery = useActorQuery();
+  return useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => request<{ deleted: string }>(withActor(`/api/data-leads/${id}`, actorQuery), { method: 'DELETE', body: JSON.stringify({ reason }) })),
+      );
+      return { total: ids.length, failed: results.filter((r) => r.status === 'rejected').length };
+    },
+    onSuccess: ({ total, failed }) => {
+      qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
+      if (failed > 0) {
+        toast.error(`${total - failed} of ${total} lead${total === 1 ? '' : 's'} deleted — ${failed} failed.`, {
+          description: 'Leads still showing were not deleted. Check your connection and try again for those.',
+        });
+      } else {
+        toast.success(`${total} lead${total === 1 ? '' : 's'} deleted permanently`);
+      }
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}
+
 /** Logs an export event to the audit trail. The exported data itself never leaves the browser. */
 export function useLogAudit() {
   const qc = useQueryClient();

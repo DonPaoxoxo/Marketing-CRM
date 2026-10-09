@@ -7,7 +7,7 @@ import { cn } from '@/lib/cn';
 import { isSafeUrl } from '@/lib/sanitize';
 import type {
   AccountAllocationStatus, AccountOperationalStatus, AllocationStatus,
-  CooperationStatus, CredentialAccessStatus, DomainStatus, HandoverStatus, SimOperationalStatus,
+  CooperationStatus, CredentialAccessStatus, DataLeadStatus, DomainStatus, HandoverStatus, SimOperationalStatus,
 } from '@/lib/types';
 
 /* ── Page scaffolding ─────────────────────────────────────────── */
@@ -171,6 +171,9 @@ const CRED_TONE: Record<CredentialAccessStatus, Tone> = {
   'Not Requested': 'neutral', Requested: 'warning', Approved: 'success', Revoked: 'danger', Expired: 'danger',
 };
 const DOMAIN_TONE: Record<DomainStatus, Tone> = { Active: 'success', Inactive: 'neutral' };
+const DATA_LEAD_TONE: Record<DataLeadStatus, Tone> = {
+  'Not contacted': 'neutral', Contacted: 'info', Responded: 'accent', 'Not interested': 'danger', Converted: 'success',
+};
 
 const TONE_MAPS: Record<string, Record<string, Tone>> = {
   simOperational: SIM_OP_TONE,
@@ -181,6 +184,7 @@ const TONE_MAPS: Record<string, Record<string, Tone>> = {
   handover: HANDOVER_TONE,
   credential: CRED_TONE,
   domain: DOMAIN_TONE,
+  dataLead: DATA_LEAD_TONE,
 };
 
 export function StatusBadge({ kind, value }: { kind: keyof typeof TONE_MAPS; value: string }) {

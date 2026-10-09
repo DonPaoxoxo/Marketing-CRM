@@ -7,9 +7,10 @@ import { db, diffRecords, nextId, recordAudit } from './db';
 import { ROLES } from '@/lib/types';
 import {
   SOCIAL_POST_PLATFORM, SOCIAL_POST_PURPOSE,
+  DATA_LEAD_ASSIGNEE,
   type AgentProof, type Agent, type Assignment, type AuditEntry, type CompetitorRecord, type ContentPost,
-  type CredentialRef, type DomainRecord, type FollowerSnapshot, type RoleName, type Sim, type SocialAccount,
-  type SocialMediaPost, type SocialPostScreenshot, type TeamMember,
+  type CredentialRef, type DataLeadRecord, type DomainRecord, type FollowerSnapshot, type RoleName, type Sim,
+  type SocialAccount, type SocialMediaPost, type SocialPostScreenshot, type TeamMember,
 } from '@/lib/types';
 import { checkAssignmentConflict } from '@/lib/rules';
 import { teamReportHandlers } from './team-reports';
@@ -23,12 +24,13 @@ import {
   checkDomainExtras, domainRawFromRecord, domainSheetChanges, domainUpdateFields, validateDomainRow,
 } from '@/lib/domain-import';
 import { checkSimExtras, simRawFromRecord, takenBySims, validateSimRow, noneTaken, addTaken } from '@/lib/sim-import';
+import { leadChannelKey, validateLeadRow, type LeadImportKey } from '@/lib/lead-import';
 import { emailKey, telegramKey, TELEGRAM_USERNAME_PATTERN } from '@/lib/identity';
 import { paymentTermFitsType } from '@/lib/agents';
 import { normalizeDomain, normalizePhone } from '@/lib/utils';
 import {
   ACCOUNT_FIELDS, AGENT_FIELDS, ASSIGNMENT_FIELDS, COMPETITOR_FIELDS, CONTENT_POST_FIELDS, CREDENTIAL_FIELDS,
-  DOMAIN_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, SOCIAL_POST_FIELDS, sanitizeFields, sanitizeText, sanitizeUrl,
+  DATA_LEAD_FIELDS, DOMAIN_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, SOCIAL_POST_FIELDS, sanitizeFields, sanitizeText, sanitizeUrl,
 } from '@/lib/sanitize';
 
 /** Absolute base so the same handlers match in the browser (against the page's
@@ -200,6 +202,7 @@ export const handlers = [
       pakistanCompetitors: db.pakistanCompetitors,
       socialMediaPosts: db.socialMediaPosts,
       socialPostScreenshots: db.socialPostScreenshots,
+      dataLeads: db.dataLeads,
       auditEntries: db.auditEntries,
     });
   }),
@@ -806,6 +809,110 @@ export const handlers = [
       });
     }
     return HttpResponse.json(rec);
+  }),
+
+  /* ── Data Leads register (mirrors server/routes/data-leads.ts) ── */
+  http.patch(`${API}/data-leads/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:data-leads')) return noAccess();
+    if (!may(request, 'edit:resources')) return bad(`Your role (${actor(request).role}) cannot edit resources.`, 403);
+    const rec = db.dataLeads.find((l) => l.id === params.id);
+    if (!rec) return bad('Lead not found.', 404);
+    const body = sanitizeFields((await request.json()) as Partial<DataLeadRecord> & { reason?: string }, DATA_LEAD_FIELDS);
+    const { reason, ...rest } = body;
+    const patch = rest as Record<string, unknown>;
+    const who = actor(request);
+
+    if (patch.assignedTo !== undefined && patch.assignedTo !== null
+      && !(DATA_LEAD_ASSIGNEE as readonly string[]).includes(patch.assignedTo as string)) {
+      return bad('Not a recognised person to assign.', 400, { field: 'assignedTo' });
+    }
+
+    if (typeof patch.status === 'string' && patch.status !== rec.status) {
+      if (patch.status === 'Not contacted') {
+        patch.contactedAt = null;
+        patch.contactedById = null;
+      } else if (rec.status === 'Not contacted') {
+        patch.contactedAt = now();
+        patch.contactedById = who.id;
+      }
+    }
+
+    const changes = diffRecords(rec as unknown as Record<string, unknown>, patch);
+    Object.assign(rec, patch, { updatedAt: now() });
+    if (changes.length) {
+      recordAudit({
+        actor: who, recordType: 'Data Lead', recordId: rec.id, recordLabel: rec.creator,
+        action: changes.some((c) => c.field === 'status') ? 'status-change' : 'update',
+        reason: reason ?? 'Lead updated',
+        changes,
+      });
+    }
+    return HttpResponse.json(rec);
+  }),
+
+  http.post(`${API}/data-leads/import`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'access:data-leads')) return noAccess();
+    if (!may(request, 'import:records')) return bad(`Your role (${actor(request).role}) cannot import records in bulk.`, 403);
+    const { countryCode, platformId, niche, rows, reason } = (await request.json()) as {
+      countryCode?: string; platformId?: string; niche?: string; rows?: Record<string, unknown>[]; reason?: string;
+    };
+    if (!Array.isArray(rows) || !rows.length) return bad('No rows were submitted.');
+    const country = db.countries.find((c) => c.code === countryCode);
+    if (!country) return bad('Choose a country.', 400, { field: 'countryCode' });
+    const defaultPlatform = db.platforms.find((p) => p.id === platformId);
+    if (!defaultPlatform) return bad('Choose a platform.', 400, { field: 'platformId' });
+
+    const niceNiche = sanitizeText(niche, 160);
+    const existing = new Set(db.dataLeads.map((l) => leadChannelKey(l.countryCode, l.platformId, l.channelUrl)));
+    const seen = new Set<string>();
+    const who = actor(request);
+    let created = 0;
+    const problems: { row: number; reason: string }[] = [];
+
+    const rawFrom = (row: Record<string, unknown>): Partial<Record<LeadImportKey, string>> => ({
+      platform: typeof row.platform === 'string' ? row.platform : '',
+      creator: typeof row.creator === 'string' ? row.creator : '',
+      channelUrl: typeof row.channelUrl === 'string' ? row.channelUrl : '',
+      subscribers: typeof row.subscribers === 'string' ? row.subscribers : '',
+      tier: typeof row.tier === 'string' ? row.tier : '',
+      keyword: typeof row.keyword === 'string' ? row.keyword : '',
+      promoConfidence: typeof row.promoConfidence === 'string' ? row.promoConfidence : '',
+      evidenceTitle: typeof row.evidenceTitle === 'string' ? row.evidenceTitle : '',
+      evidenceUrl: typeof row.evidenceUrl === 'string' ? row.evidenceUrl : '',
+      publicEmail: typeof row.publicEmail === 'string' ? row.publicEmail : '',
+      publicTelegram: typeof row.publicTelegram === 'string' ? row.publicTelegram : '',
+      publicInstagram: typeof row.publicInstagram === 'string' ? row.publicInstagram : '',
+      status: typeof row.status === 'string' ? row.status : '',
+    });
+
+    for (const [index, row] of rows.entries()) {
+      const rowNumber = Number((row as { rowNumber?: unknown })?.rowNumber) || index + 1;
+      const { value, problems: rowProblems } = validateLeadRow(rawFrom(row), {
+        platforms: db.platforms, defaultPlatformId: defaultPlatform.id, countryCode: country.code, existing, seen,
+      });
+      if (!value) {
+        problems.push({ row: rowNumber, reason: rowProblems.map((p) => `${p.column}: ${p.message}`).join(' ') });
+        continue;
+      }
+      db.dataLeads.unshift({
+        id: nextId('LED', db.dataLeads), countryCode: country.code, niche: niceNiche, notes: '',
+        ...value, contactedAt: null, contactedById: null, assignedTo: null, createdAt: now(), updatedAt: now(),
+      });
+      seen.add(leadChannelKey(country.code, value.platformId, value.channelUrl));
+      created++;
+    }
+
+    recordAudit({
+      actor: who, recordType: 'Import', recordId: 'data-leads', recordLabel: `Data Leads upload (${niceNiche || 'uncategorised'})`,
+      action: 'import', reason: reason ?? 'CSV import committed',
+      changes: [
+        { field: 'rowsCreated', from: null, to: created },
+        { field: 'rowsSubmitted', from: null, to: rows.length },
+      ],
+    });
+    return HttpResponse.json({ created, skipped: rows.length - created, problems: problems.slice(0, 200) });
   }),
 
   /* ── Social Media Posting ─────────────────────────────────── */

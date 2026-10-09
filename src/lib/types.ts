@@ -73,6 +73,15 @@ export type DomainCountry = (typeof DOMAIN_COUNTRY)[number];
 export const DOMAIN_STATUS = ['Active', 'Inactive'] as const;
 export type DomainStatus = (typeof DOMAIN_STATUS)[number];
 
+export const DATA_LEAD_STATUS = ['Not contacted', 'Contacted', 'Responded', 'Not interested', 'Converted'] as const;
+export type DataLeadStatus = (typeof DATA_LEAD_STATUS)[number];
+
+/** Who on the outreach team a lead is assigned to. A fixed roster rather than
+ *  FK -> TeamMember: these are the people doing outreach, not necessarily
+ *  people who sign in to the CRM. */
+export const DATA_LEAD_ASSIGNEE = ['CJ', 'Tonyo', 'Renze', 'Godwin', 'Ace'] as const;
+export type DataLeadAssignee = (typeof DATA_LEAD_ASSIGNEE)[number];
+
 /* ── Records ──────────────────────────────────────────────────── */
 
 export interface Sim {
@@ -260,6 +269,40 @@ export interface CompetitorRecord {
   updatedAt: string;
 }
 
+/** One prospective creator found promoting a niche's content on a platform —
+ *  a lead to reach out to, not a tracked account. Sourced from scraper sheets
+ *  such as india_casino_creator_leads_youtube_v2.csv: Country, Platform and
+ *  Niche are set once per upload batch (the sheet's own filename says all
+ *  three); Keyword is the specific angle the evidence video shows. */
+export interface DataLeadRecord {
+  id: ID;                       // LED-0001
+  countryCode: string;          // FK -> Country
+  platformId: ID;                // FK -> Platform
+  niche: string;                 // e.g. "Casino/Betting" — set per upload batch
+  creator: string;                // display name / handle as scraped
+  channelUrl: string;
+  followerCount: number | null;   // subscribers / followers at scrape time
+  tier: string;                   // e.g. "micro-nano (10k-100k)", free text from the sheet
+  keyword: string;                // the search term the evidence video matched
+  promoConfidence: string;        // e.g. High, Medium, Low, Review
+  evidenceTitle: string;
+  evidenceUrl: string;
+  /** Scraped contact references, not verified or normalised like a SIM's —
+   *  shown as-is, with a best-effort link where one can be found in the text. */
+  publicEmail: string;
+  publicTelegram: string;
+  publicInstagram: string;
+  status: DataLeadStatus;
+  /** When the lead first moved out of "Not contacted", and who did it. Null until then. */
+  contactedAt: string | null;
+  contactedById: ID | null;
+  /** Who on the outreach team owns this lead. Null until assigned. */
+  assignedTo: DataLeadAssignee | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export const SOCIAL_POST_PURPOSE = ['Daily Posting', 'Event', 'Others'] as const;
 export type SocialPostPurpose = (typeof SOCIAL_POST_PURPOSE)[number];
 
@@ -374,6 +417,8 @@ export const PERMISSIONS = [
   'access:credential-refs',
   /** Open Roles & Audit (the permission matrix and the audit history). */
   'access:roles-audit',
+  /** Open Data Leads (scraped creator-outreach lists) and bulk-upload them. */
+  'access:data-leads',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -438,6 +483,7 @@ export interface Bootstrap {
   pakistanCompetitors: CompetitorRecord[];
   socialMediaPosts: SocialMediaPost[];
   socialPostScreenshots: SocialPostScreenshot[];
+  dataLeads: DataLeadRecord[];
   auditEntries: AuditEntry[];
 }
 

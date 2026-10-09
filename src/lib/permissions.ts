@@ -34,12 +34,13 @@ export const ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     'export:data',
     'request:credential-access',
     'archive:records',
+    'access:data-leads',
   ],
   // Staff can add SIMs, accounts and agents one at a time, so importing them in
   // bulk gives no new reach. Exporting would, and stays with managers. Archiving
   // was added at the owner's request (2026-09-14); the agent edit lock still limits
   // it to the agents a person manages.
-  'Marketing Staff': ['view:contact-details', 'edit:resources', 'import:records', 'request:credential-access', 'archive:records'],
+  'Marketing Staff': ['view:contact-details', 'edit:resources', 'import:records', 'request:credential-access', 'archive:records', 'access:data-leads'],
   'Read-only Reviewer': [],
 };
 
@@ -57,6 +58,7 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'access:import': 'Open Import',
   'access:credential-refs': 'Open Credential Refs',
   'access:roles-audit': 'Open Roles & Audit',
+  'access:data-leads': 'Open Data Leads',
 };
 
 export const ROLE_DESCRIPTIONS: Record<RoleName, string> = {

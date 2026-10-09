@@ -16,6 +16,7 @@
     "db:check": "tsx server/scripts/check-db.ts",
     "db:migrate": "tsx server/db/migrate.ts",
     "db:seed-config": "tsx server/scripts/seed-config.ts",
+    "db:seed-data-leads": "tsx server/scripts/seed-data-leads.ts",
     "db:export-sql": "tsx server/scripts/export-setup-sql.ts",
     "seed:users": "tsx server/scripts/seed-users.ts",
     "typecheck:server": "tsc -p tsconfig.server.json",

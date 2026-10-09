@@ -15,12 +15,14 @@ export const AREA_PERMISSIONS = {
   '/import': 'access:import',
   '/credentials': 'access:credential-refs',
   '/audit': 'access:roles-audit',
+  '/data-leads': 'access:data-leads',
 } as const satisfies Record<string, Permission>;
 
 /** Audit history that belongs to a restricted area, by record type. */
 export const AUDIT_TYPE_PERMISSIONS: Record<string, Permission> = {
   Domain: 'access:domains',
   Import: 'access:import',
+  'Data Lead': 'access:data-leads',
   'Credential Reference': 'access:credential-refs',
   User: 'access:roles-audit',
   Role: 'access:roles-audit',
@@ -80,6 +82,7 @@ export function bootstrapFor(data: Bootstrap, holder: PermissionHolder): Bootstr
   return {
     ...data,
     domains: hasPermission(holder, 'access:domains') ? data.domains : [],
+    dataLeads: hasPermission(holder, 'access:data-leads') ? data.dataLeads : [],
     auditEntries: data.auditEntries.filter((a) => {
       const needed = AUDIT_TYPE_PERMISSIONS[a.recordType];
       return !needed || hasPermission(holder, needed);

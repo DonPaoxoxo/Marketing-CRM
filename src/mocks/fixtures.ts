@@ -10,8 +10,8 @@
  *  credentials. Vault references point nowhere. */
 
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DataLeadRecord,
+  DomainRecord, FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
 import { PAYMENT_TERM_BY_TYPE } from '@/lib/agents';
@@ -475,6 +475,56 @@ export const pakistanCompetitors: CompetitorRecord[] = COMPETITOR_SEED.map((c, i
   notes: '',
   archived: false,
   createdAt: stamp(-int(5, 60)),
+  updatedAt: stamp(-int(0, 5)),
+}));
+
+/* ── Data Leads ───────────────────────────────────────────────────── */
+
+/** A handful of rows in the shape of india_casino_creator_leads_youtube_v2.csv
+ *  and sibling sheets for the other platforms and countries — enough for the
+ *  page and the upload window to be exercised in tests without shipping the
+ *  real 1,900-row scrape. */
+const DATA_LEAD_SEED: {
+  country: string; platform: string; niche: string; creator: string; channelUrl: string; followers: number;
+  tier: string; keyword: string; confidence: string; evidenceTitle: string; evidenceUrl: string;
+  email: string; telegram: string; instagram: string; status: DataLeadRecord['status']; assignee?: DataLeadRecord['assignedTo'];
+}[] = [
+  { country: 'IN', platform: 'PLT-04', niche: 'Casino/Betting', creator: 'DK Online Tech', channelUrl: 'https://www.youtube.com/channel/UCaZmbb9RVT1WTnyk6OQzs5A', followers: 95300, tier: 'micro-nano (10k-100k)', keyword: 'colour prediction', confidence: 'High', evidenceTitle: 'Colour prediction app withdrawal trick', evidenceUrl: 'https://www.youtube.com/watch?v=mPnJeRzcrvY', email: 'dkumar11255@gmail.com', telegram: 't.me/dkonlinetech', instagram: 'instagram.com/kanojiyadk8', status: 'Not contacted', assignee: 'CJ' },
+  { country: 'IN', platform: 'PLT-04', niche: 'Casino/Betting', creator: 'Tamil Tech Today', channelUrl: 'https://www.youtube.com/channel/UCtEcrkzYTkggOL1QE8f7nnw', followers: 94600, tier: 'micro-nano (10k-100k)', keyword: 'aviator/crash', confidence: 'High', evidenceTitle: 'Aviator game winner simple trick in Tamil', evidenceUrl: 'https://www.youtube.com/watch?v=un7HJy90Uyw', email: 'muhesh994@gmail.com', telegram: '', instagram: 'instagram.com/tamiltechtoday2', status: 'Not contacted' },
+  { country: 'IN', platform: 'PLT-04', niche: 'Casino/Betting', creator: 'Telugu Investor SK', channelUrl: 'https://www.youtube.com/channel/UCcpz2X9TteOdjx9skO1uDsA', followers: 89000, tier: 'micro-nano (10k-100k)', keyword: 'rummy', confidence: 'High', evidenceTitle: 'Best rummy apps telugu 2026', evidenceUrl: 'https://www.youtube.com/watch?v=HZMu0IUObrw', email: '', telegram: '', instagram: '', status: 'Not contacted', assignee: 'Tonyo' },
+  { country: 'IN', platform: 'PLT-04', niche: 'Casino/Betting', creator: 'Online Help', channelUrl: 'https://www.youtube.com/channel/UC6zeWrGDSXTbsTMkBuCSn1Q', followers: 87200, tier: 'micro-nano (10k-100k)', keyword: 'rummy', confidence: 'High', evidenceTitle: 'Rummy Circle game se paise kaise kamaye', evidenceUrl: 'https://www.youtube.com/watch?v=9bmBY5RZ4y0', email: 'onlinehelp.rkrhishi@gmail.com', telegram: '', instagram: '', status: 'Contacted', assignee: 'Renze' },
+  { country: 'IN', platform: 'PLT-01', niche: 'Casino/Betting', creator: 'Jackpot Daily Updates', channelUrl: 'https://facebook.com/jackpotdailyupdatesin', followers: 42100, tier: 'nano (10k-100k)', keyword: 'teen patti', confidence: 'Review', evidenceTitle: 'Teen Patti real cash — new sign up bonus', evidenceUrl: 'https://facebook.com/jackpotdailyupdatesin/posts/1', email: 'jackpot.daily.in@gmail.com', telegram: '', instagram: '', status: 'Not contacted' },
+  { country: 'IN', platform: 'PLT-02', niche: 'Casino/Betting', creator: 'ludo.king.winner', channelUrl: 'https://instagram.com/ludo.king.winner', followers: 18700, tier: 'nano (10k-100k)', keyword: 'ludo cash game', confidence: 'Medium', evidenceTitle: 'Reel: Ludo earning trick', evidenceUrl: 'https://instagram.com/reel/abc123', email: '', telegram: '@ludokingwinner', instagram: '', status: 'Not contacted' },
+  { country: 'ID', platform: 'PLT-04', niche: 'Casino/Betting', creator: 'Trik Slot Gacor', channelUrl: 'https://www.youtube.com/channel/UC000000000000000000001', followers: 61200, tier: 'nano (10k-100k)', keyword: 'slot gacor', confidence: 'High', evidenceTitle: 'Trik slot gacor hari ini terbukti menang', evidenceUrl: 'https://www.youtube.com/watch?v=idvideo1', email: 'trikslotgacor@gmail.com', telegram: '', instagram: '', status: 'Not contacted', assignee: 'Godwin' },
+  { country: 'ID', platform: 'PLT-03', niche: 'Casino/Betting', creator: 'bos.togel.hoki', channelUrl: 'https://www.tiktok.com/@bos.togel.hoki', followers: 25400, tier: 'nano (10k-100k)', keyword: 'togel online', confidence: 'Review', evidenceTitle: 'Bocoran angka togel malam ini', evidenceUrl: 'https://www.tiktok.com/@bos.togel.hoki/video/1', email: '', telegram: 't.me/bostogelhoki', instagram: '', status: 'Not contacted' },
+  { country: 'ID', platform: 'PLT-05', niche: 'Casino/Betting', creator: '@crypto_slot_id', channelUrl: 'https://x.com/crypto_slot_id', followers: 9800, tier: 'nano (<1k)', keyword: 'slot online', confidence: 'Low', evidenceTitle: 'Thread: cara deposit slot pakai crypto', evidenceUrl: 'https://x.com/crypto_slot_id/status/1', email: 'cryptoslotid@gmail.com', telegram: '', instagram: '', status: 'Not interested', assignee: 'Ace' },
+  { country: 'PK', platform: 'PLT-04', niche: 'Casino/Betting', creator: 'PK Earning Guide', channelUrl: 'https://www.youtube.com/channel/UC000000000000000000002', followers: 73500, tier: 'nano (10k-100k)', keyword: 'colour prediction', confidence: 'High', evidenceTitle: 'Colour prediction PK withdrawal proof', evidenceUrl: 'https://www.youtube.com/watch?v=pkvideo1', email: 'pkearningguide@gmail.com', telegram: 'Telegram - @pkearningguide', instagram: '', status: 'Not contacted' },
+  { country: 'PK', platform: 'PLT-01', niche: 'Casino/Betting', creator: 'Lucky Spin PK', channelUrl: 'https://facebook.com/luckyspinpk', followers: 31200, tier: 'nano (10k-100k)', keyword: 'aviator/crash', confidence: 'Medium', evidenceTitle: 'Aviator crash game PK trick', evidenceUrl: 'https://facebook.com/luckyspinpk/posts/1', email: '', telegram: '', instagram: 'instagram.com/luckyspinpk', status: 'Responded', assignee: 'CJ' },
+  { country: 'PK', platform: 'PLT-02', niche: 'Casino/Betting', creator: 'win.fast.pk', channelUrl: 'https://instagram.com/win.fast.pk', followers: 15600, tier: 'nano (10k-100k)', keyword: 'rummy', confidence: 'Review', evidenceTitle: 'Story highlight: rummy winning proof', evidenceUrl: 'https://instagram.com/win.fast.pk', email: 'winfastpk@gmail.com', telegram: '', instagram: '', status: 'Not contacted' },
+];
+
+export const dataLeads: DataLeadRecord[] = DATA_LEAD_SEED.map((l, i) => ({
+  id: `LED-${pad(i + 1)}`,
+  countryCode: l.country,
+  platformId: l.platform,
+  niche: l.niche,
+  creator: l.creator,
+  channelUrl: l.channelUrl,
+  followerCount: l.followers,
+  tier: l.tier,
+  keyword: l.keyword,
+  promoConfidence: l.confidence,
+  evidenceTitle: l.evidenceTitle,
+  evidenceUrl: l.evidenceUrl,
+  publicEmail: l.email,
+  publicTelegram: l.telegram,
+  publicInstagram: l.instagram,
+  status: l.status,
+  contactedAt: l.status === 'Not contacted' ? null : stamp(-int(0, 10)),
+  contactedById: l.status === 'Not contacted' ? null : 'TM-02',
+  assignedTo: l.assignee ?? null,
+  notes: '',
+  createdAt: stamp(-int(5, 45)),
   updatedAt: stamp(-int(0, 5)),
 }));
 

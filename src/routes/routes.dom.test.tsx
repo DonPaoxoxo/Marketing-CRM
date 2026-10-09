@@ -29,6 +29,7 @@ import BrandDetailPage from './BrandDetail';
 import ReportsPage from './Reports';
 import ImportPage from './Import';
 import AuditPage from './Audit';
+import DataLeadsPage from './DataLeads';
 
 const server = setupServer(...handlers);
 beforeAll(() => {
@@ -199,6 +200,13 @@ describe('every route renders against the mock API', () => {
     mount(<ImportPage />);
     await heading(/Import and data quality/);
     expect(await screen.findByLabelText(/Upload a CSV file/)).toBeTruthy();
+  });
+
+  it('Data Leads lists the seeded creator leads', async () => {
+    mount(<DataLeadsPage />);
+    await heading(/^Data Leads$/);
+    expect(await screen.findByText(/^\d+ records?$/)).toBeTruthy();
+    expect(screen.getByText('DK Online Tech')).toBeTruthy();
   });
 
   it('Roles and audit renders the permission matrix', async () => {

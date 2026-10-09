@@ -13,7 +13,7 @@ import { loadProofs, mapProof } from '../routes/agent-proofs';
 import { loadScreenshotsMeta, mapScreenshotMeta } from '../routes/social-media-posts';
 import {
   groupBy, mapAccount, mapAgent, mapAssignment, mapAuditChange, mapAuditEntry, mapBrand,
-  mapCompetitor, mapContentPost, mapCountry, mapCredential, mapDomain, mapPlatform, mapProject, mapSim,
+  mapCompetitor, mapContentPost, mapCountry, mapCredential, mapDataLead, mapDomain, mapPlatform, mapProject, mapSim,
   mapSnapshot, mapSocialPost, mapTeamMember,
 } from './mappers';
 
@@ -30,6 +30,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     simRows, agentRows, agentBrandRows, agentProjectRows, agentChannelRows, agentPostLinkRows,
     accountRows, accountSimRows, credentialRows, assignmentRows, domainRows,
     snapshotRows, postRows, auditRows, auditChangeRows, proofRows, competitorRows, socialPostRows, screenshotMetaRows,
+    dataLeadRows,
   ] = await Promise.all([
     query<RowDataPacket>('SELECT * FROM countries ORDER BY name'),
     query<RowDataPacket>('SELECT * FROM platforms ORDER BY name'),
@@ -67,6 +68,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     query<RowDataPacket>('SELECT * FROM social_media_posts ORDER BY post_date DESC, id DESC'),
     // Metadata only; the image itself is fetched on its own when shown.
     loadScreenshotsMeta(),
+    query<RowDataPacket>('SELECT * FROM data_leads ORDER BY created_at DESC, id DESC'),
   ]);
 
   const brandCountries = groupBy(brandCountryRows, 'brand_id');
@@ -104,6 +106,7 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     pakistanCompetitors: competitorRows.map(mapCompetitor),
     socialMediaPosts: socialPostRows.map(mapSocialPost),
     socialPostScreenshots: screenshotMetaRows.map(mapScreenshotMeta),
+    dataLeads: dataLeadRows.map(mapDataLead),
     auditEntries: auditRows.map((r) =>
       mapAuditEntry(r, (auditChanges.get(String(r.id)) ?? []).map(mapAuditChange)),
     ),

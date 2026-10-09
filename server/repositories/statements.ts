@@ -172,6 +172,28 @@ export const COMPETITOR_COLUMNS: ColumnMap = {
   archived: 'archived',
 };
 
+export const DATA_LEAD_COLUMNS: ColumnMap = {
+  countryCode: 'country_code',
+  platformId: 'platform_id',
+  niche: 'niche',
+  creator: 'creator',
+  channelUrl: 'channel_url',
+  followerCount: nullable('follower_count'),
+  tier: 'tier',
+  keyword: 'keyword',
+  promoConfidence: 'promo_confidence',
+  evidenceTitle: 'evidence_title',
+  evidenceUrl: 'evidence_url',
+  publicEmail: 'public_email',
+  publicTelegram: 'public_telegram',
+  publicInstagram: 'public_instagram',
+  status: 'status',
+  contactedAt: nullable('contacted_at'),
+  contactedById: nullable('contacted_by_id'),
+  assignedTo: nullable('assigned_to'),
+  notes: 'notes',
+};
+
 export const SOCIAL_POST_COLUMNS: ColumnMap = {
   marketingMemberId: 'marketing_member_id',
   purpose: 'purpose',

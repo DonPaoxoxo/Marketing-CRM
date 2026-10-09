@@ -112,7 +112,7 @@ export function useCrmData() {
 
 /* ── Mutations ────────────────────────────────────────────────── */
 
-type Entity = 'sims' | 'agents' | 'social-accounts' | 'assignments' | 'credentials' | 'domains' | 'content-posts' | 'pakistan-competitors' | 'social-media-posts';
+type Entity = 'sims' | 'agents' | 'social-accounts' | 'assignments' | 'credentials' | 'domains' | 'content-posts' | 'pakistan-competitors' | 'social-media-posts' | 'data-leads';
 
 export function useCreate<T>(entity: Entity, label = 'Record') {
   const qc = useQueryClient();
@@ -167,6 +167,27 @@ export function useImportCommit(entity: 'sims' | 'agents' | 'social-accounts' | 
     onSuccess: (r) => {
       qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
       toast.success(`Imported ${r.created} record${r.created === 1 ? '' : 's'}${r.updated ? `, updated ${r.updated}` : ''}`, {
+        description: r.skipped ? `${r.skipped} row(s) skipped — see the import summary.` : undefined,
+      });
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}
+
+/** Commits a Data Leads upload: Country, Platform and Niche are chosen once for
+ *  the whole file (see lead-import.ts), unlike the per-entity CSV imports above. */
+export function useLeadImportCommit() {
+  const qc = useQueryClient();
+  const actorQuery = useActorQuery();
+  return useMutation({
+    mutationFn: (payload: { countryCode: string; platformId: string; niche: string; rows: Record<string, unknown>[]; reason?: string }) =>
+      request<ImportResult>(withActor('/api/data-leads/import', actorQuery), {
+        method: 'POST',
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (r) => {
+      qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
+      toast.success(`Imported ${r.created} lead${r.created === 1 ? '' : 's'}`, {
         description: r.skipped ? `${r.skipped} row(s) skipped — see the import summary.` : undefined,
       });
     },

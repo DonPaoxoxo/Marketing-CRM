@@ -14,8 +14,8 @@
  *  the test suite. */
 
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DomainRecord,
-  FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DataLeadRecord,
+  DomainRecord, FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '../lib/types';
 
 /* ── Configuration ────────────────────────────────────────────── */
@@ -55,4 +55,5 @@ export const agentProofs: AgentProof[] = [];
 export const pakistanCompetitors: CompetitorRecord[] = [];
 export const socialMediaPosts: SocialMediaPost[] = [];
 export const socialPostScreenshots: SocialPostScreenshot[] = [];
+export const dataLeads: DataLeadRecord[] = [];
 export const auditEntries: AuditEntry[] = [];

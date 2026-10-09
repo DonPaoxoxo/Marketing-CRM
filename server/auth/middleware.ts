@@ -78,6 +78,7 @@ const DESCRIPTIONS: Record<Permission, string> = {
   'access:import': 'open Import',
   'access:credential-refs': 'open Credential Refs',
   'access:roles-audit': 'open Roles & Audit',
+  'access:data-leads': 'open Data Leads',
 };
 
 function describe(permission: Permission): string {

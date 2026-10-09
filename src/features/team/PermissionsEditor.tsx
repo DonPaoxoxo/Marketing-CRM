@@ -21,7 +21,7 @@ interface Snapshot {
 }
 
 const GROUPS: { title: string; permissions: Permission[] }[] = [
-  { title: 'Pages', permissions: ['access:domains', 'access:import', 'access:credential-refs', 'access:roles-audit'] },
+  { title: 'Pages', permissions: ['access:domains', 'access:import', 'access:credential-refs', 'access:roles-audit', 'access:data-leads'] },
   { title: 'Records', permissions: ['edit:resources', 'archive:records', 'assign:resources', 'import:records'] },
   { title: 'Data and credentials', permissions: ['view:contact-details', 'export:data', 'manage:credential-refs', 'request:credential-access'] },
 ];

@@ -296,6 +296,7 @@ export const mapDomainMonitor = (r: RowDataPacket): DomainMonitorRecord => ({
   activationStatus: (r.activation_status as DomainMonitorRecord['activationStatus']) ?? null,
   enabled: bool(r.enabled),
   enabledDate: date(r.enabled_date),
+  nextRotationDate: date(r.next_rotation_date),
   lastAccessibilityStatus: r.last_accessibility_status as DomainMonitorRecord['lastAccessibilityStatus'],
   lastCheckedDate: date(r.last_checked_date),
   lastCheckedById: id(r.last_checked_by_id),

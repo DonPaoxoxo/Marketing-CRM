@@ -332,6 +332,9 @@ export interface DomainMonitorRecord {
   /** The date `enabled` was last set to true. Not touched when disabling, so it
    *  keeps reading the last time this domain went live. */
   enabledDate: string | null;
+  /** A manually-set reminder date, independent of the rotation groups feature
+   *  — for tracking a rotation schedule by hand without configuring a batch. */
+  nextRotationDate: string | null;
   lastAccessibilityStatus: DomainAccessibilityStatus;
   /** Denormalised cache of the latest domain_check_logs row. Never the source
    *  of "Pending Today" — that is computed by comparing this against today. */

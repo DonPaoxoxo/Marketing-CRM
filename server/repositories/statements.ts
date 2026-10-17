@@ -200,6 +200,7 @@ export const DOMAIN_MONITOR_COLUMNS: ColumnMap = {
   activationStatus: nullable('activation_status'),
   enabled: 'enabled',
   enabledDate: nullable('enabled_date'),
+  nextRotationDate: nullable('next_rotation_date'),
   lastAccessibilityStatus: 'last_accessibility_status',
   lastCheckedDate: nullable('last_checked_date'),
   lastCheckedById: nullable('last_checked_by_id'),

@@ -17,6 +17,7 @@ export function domainMonitorColumns(personName: PersonName): ExportColumn<Domai
     { key: 'activationStatus', header: 'Activation Status', value: (r) => r.activationStatus ?? '' },
     { key: 'enabled', header: 'Enabled', value: (r) => (r.enabled ? 'Enabled' : 'Disabled') },
     { key: 'enabledDate', header: 'Date Enabled', value: (r) => r.enabledDate ?? '' },
+    { key: 'nextRotationDate', header: 'Next Rotation Date', value: (r) => r.nextRotationDate ?? '' },
     { key: 'lastAccessibilityStatus', header: 'Accessibility', value: (r) => r.lastAccessibilityStatus },
     { key: 'lastCheckedDate', header: 'Last Checked', value: (r) => r.lastCheckedDate ?? '' },
     { key: 'lastCheckedBy', header: 'Checked By', value: (r) => personName(r.lastCheckedById) },

@@ -6,7 +6,7 @@ import { ErrorState, PageHeader, SafeExternalLink, SectionCard } from '@/compone
 import { DataTable } from '@/components/common/DataTable';
 import { ConfirmWithReason, FilterBar, FilterSelect, SearchInput } from '@/components/common/controls';
 import { useRegisterExport } from '@/components/layout/page-actions';
-import { Checkbox, NativeSelect } from '@/components/ui/primitives';
+import { Checkbox, Input, NativeSelect } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { useCrmData } from '@/hooks/useData';
 import { useFilters } from '@/hooks/useFilters';
@@ -15,7 +15,7 @@ import { displayUrl, formatDate } from '@/lib/utils';
 import { isAdmin } from '@/lib/access';
 import type { ExportColumn } from '@/lib/csv';
 import { DOMAIN_ACCESSIBILITY_STATUS, type DomainAccessibilityStatus, type DomainMonitorRecord, type DomainMonitorType } from '@/lib/types';
-import { dailyCheckBucket } from './badges';
+import { accessibilitySelectClass, dailyCheckBucket } from './badges';
 import { AccessibilityCheckDialog, type CheckTarget } from './AccessibilityCheckDialog';
 import { DomainMonitorFormDialog } from './DomainMonitorFormDialog';
 import { DomainBulkAddDialog } from './DomainBulkAddDialog';
@@ -76,21 +76,6 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
 
   const openEdit = (d: DomainMonitorRecord) => { setEditing(d); setFormOpen(true); };
 
-  // Invite only: a domain's next rotation date is whatever its batch's group
-  // is next due — derived from bootstrap data, nothing stored per domain.
-  const nextRotationByDomainId = React.useMemo(() => {
-    if (domainType !== 'Invite') return new Map<string, string | null>();
-    const groupById = new Map((data?.rotationGroups ?? []).map((g) => [g.id, g]));
-    const batchById = new Map((data?.rotationBatches ?? []).map((b) => [b.id, b]));
-    const map = new Map<string, string | null>();
-    for (const m of data?.rotationBatchMembers ?? []) {
-      const batch = batchById.get(m.rotationBatchId);
-      const group = batch ? groupById.get(batch.rotationGroupId) : undefined;
-      map.set(m.domainMonitorId, group?.nextRotationDueAt ?? null);
-    }
-    return map;
-  }, [domainType, data]);
-
   // "Current Filtered Results" and "Selected Domains" are tab-specific — the
   // other export scopes are page-level and registered once in DomainMonitoring.tsx.
   const exportColumns = React.useMemo(() => domainMonitorColumns(lookups.personName) as unknown as ExportColumn<never>[], [lookups]);
@@ -130,7 +115,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
           <div onClick={(e) => e.stopPropagation()}>
             <NativeSelect
               aria-label={`Accessibility of ${d.domainName}`}
-              className="h-8 w-auto text-[13px]"
+              className={`h-8 w-auto text-[13px] font-medium ${accessibilitySelectClass(d.lastAccessibilityStatus)}`}
               value={d.lastAccessibilityStatus}
               disabled={!can('record:domain-checks')}
               onChange={(e) => check.mutate({ id: d.id, accessibilityStatus: e.target.value as DomainAccessibilityStatus })}
@@ -161,7 +146,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
           <div onClick={(e) => e.stopPropagation()}>
             <NativeSelect
               aria-label={`Enabled state of ${d.domainName}`}
-              className="h-8 w-auto text-[13px]"
+              className={`h-8 w-auto text-[13px] font-medium ${d.enabled ? 'border-success/40 text-success' : 'border-danger/40 text-danger'}`}
               value={d.enabled ? 'Enabled' : 'Disabled'}
               disabled={!can('edit:resources')}
               onChange={(e) => update.mutate({ id: d.id, enabled: e.target.value === 'Enabled' })}
@@ -180,10 +165,21 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         : <span className="text-muted-foreground">Never</span>,
     },
     ...(domainType === 'Invite' ? [{
-      id: 'nextRotation', header: 'Next Rotation Date', enableSorting: false,
+      id: 'nextRotation', header: 'Next Rotation Date', accessorKey: 'nextRotationDate', enableSorting: false,
       cell: ({ row }: { row: { original: DomainMonitorRecord } }) => {
-        const due = nextRotationByDomainId.get(row.original.id);
-        return due ? <span className="tabular">{formatDate(due)}</span> : <span className="text-muted-foreground">Not scheduled</span>;
+        const d = row.original;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <Input
+              type="date"
+              aria-label={`Next rotation date for ${d.domainName}`}
+              className="h-8 w-auto text-[13px]"
+              value={d.nextRotationDate ?? ''}
+              disabled={!can('edit:resources')}
+              onChange={(e) => update.mutate({ id: d.id, nextRotationDate: e.target.value || null })}
+            />
+          </div>
+        );
       },
     } satisfies ColumnDef<DomainMonitorRecord, unknown>] : []),
     {
@@ -216,7 +212,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         );
       },
     },
-  ], [domainType, lookups, can, selectMode, selectedIds, allFilteredSelected, filtered, check, update, nextRotationByDomainId]);
+  ], [domainType, lookups, can, selectMode, selectedIds, allFilteredSelected, filtered, check, update]);
 
   if (error) return <ErrorState message={error.message} onRetry={() => refetch()} />;
 

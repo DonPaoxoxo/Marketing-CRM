@@ -150,6 +150,17 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     await waitFor(() => expect(db.domainMonitors.find((d) => d.domainName === 'freecash-alpha.com')?.archived).toBe(false));
   });
 
+  it('sets a manual next rotation date on an Invite domain', async () => {
+    mount();
+    await screen.findByText('freecash-alpha.com');
+    clickTab('Invite Domains');
+    await screen.findByText('invite-alpha.com');
+    const row = screen.getByRole('row', { name: /invite-alpha\.com/ });
+    fireEvent.change(within(row).getByLabelText('Next rotation date for invite-alpha.com'), { target: { value: '2026-11-01' } });
+
+    await waitFor(() => expect(db.domainMonitors.find((d) => d.domainName === 'invite-alpha.com')?.nextRotationDate).toBe('2026-11-01'));
+  });
+
   it('lets the System Administrator select domains and permanently delete them', async () => {
     mount(); // default preview role is System Administrator
     await screen.findByText('freecash-alpha.com');

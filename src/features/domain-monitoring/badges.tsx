@@ -1,7 +1,20 @@
 import { Badge } from '@/components/ui/primitives';
 import { daysSince } from '@/lib/utils';
 import { ROTATION_SCHEDULE_LABELS, rotationScheduleBucket } from '@/lib/rules';
-import type { RotationBatchStatus } from '@/lib/types';
+import type { DomainAccessibilityStatus, RotationBatchStatus } from '@/lib/types';
+
+/** Border/text colour for the inline Accessibility select on the domain
+ *  monitoring tables — a glance at the row's colour, not just its text. */
+const ACCESSIBILITY_SELECT_TONE: Record<DomainAccessibilityStatus, string> = {
+  Accessible: 'border-success/40 text-success',
+  Inaccessible: 'border-danger/40 text-danger',
+  Intermittent: 'border-warning/40 text-warning',
+  'Not Checked': '',
+};
+
+export function accessibilitySelectClass(value: DomainAccessibilityStatus): string {
+  return ACCESSIBILITY_SELECT_TONE[value];
+}
 
 const BATCH_STATUS_TONE: Record<RotationBatchStatus, 'success' | 'info'> = { Active: 'success', Standby: 'info' };
 

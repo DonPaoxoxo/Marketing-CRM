@@ -1,6 +1,6 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ListChecks, Pencil, Upload, X } from 'lucide-react';
+import { ListChecks, Pencil, Trash2, Upload, X } from 'lucide-react';
 import { Archive, ArchiveRestore, History } from 'lucide-react';
 import { ErrorState, PageHeader, SafeExternalLink, SectionCard } from '@/components/common/bits';
 import { DataTable } from '@/components/common/DataTable';
@@ -12,6 +12,7 @@ import { useCrmData } from '@/hooks/useData';
 import { useFilters } from '@/hooks/useFilters';
 import { useSession } from '@/hooks/useSession';
 import { displayUrl, formatDate } from '@/lib/utils';
+import { isAdmin } from '@/lib/access';
 import type { ExportColumn } from '@/lib/csv';
 import { DOMAIN_ACCESSIBILITY_STATUS, type DomainAccessibilityStatus, type DomainMonitorRecord, type DomainMonitorType } from '@/lib/types';
 import { dailyCheckBucket } from './badges';
@@ -19,7 +20,7 @@ import { AccessibilityCheckDialog, type CheckTarget } from './AccessibilityCheck
 import { DomainMonitorFormDialog } from './DomainMonitorFormDialog';
 import { DomainBulkAddDialog } from './DomainBulkAddDialog';
 import { domainMonitorColumns } from './domainMonitoringExport';
-import { useRecordAccessibilityCheck, useUpdateDomainMonitor } from './api';
+import { useBulkDeleteDomainMonitors, useRecordAccessibilityCheck, useUpdateDomainMonitor } from './api';
 
 const DEFAULTS = { search: '', status: 'all', view: 'active' };
 
@@ -30,9 +31,11 @@ const DEFAULTS = { search: '', status: 'all', view: 'active' };
 export function DomainMonitorTable({ domainType, title, description }: { domainType: DomainMonitorType; title: string; description: string }) {
   const { data, lookups, isLoading, error, refetch } = useCrmData();
   const { values, set, clear, activeCount } = useFilters(DEFAULTS, { notFilters: ['view'] });
-  const { can } = useSession();
+  const { can, role } = useSession();
   const update = useUpdateDomainMonitor();
   const check = useRecordAccessibilityCheck();
+  const bulkDelete = useBulkDeleteDomainMonitors();
+  const mayDelete = isAdmin(role);
   const showArchived = values.view === 'archived';
 
   const [formOpen, setFormOpen] = React.useState(false);
@@ -41,6 +44,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
   const [archiving, setArchiving] = React.useState<DomainMonitorRecord | undefined>();
   const [restoring, setRestoring] = React.useState<DomainMonitorRecord | undefined>();
   const [checkTarget, setCheckTarget] = React.useState<CheckTarget | undefined>();
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
   const [selectMode, setSelectMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
 
@@ -223,12 +227,19 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         description={description}
         actions={
           <>
-            {can('record:domain-checks') && all.length > 0 && (
+            {(can('record:domain-checks') || mayDelete) && all.length > 0 && (
               selectMode ? (
                 <>
-                  <Button size="sm" disabled={selectedIds.size === 0} onClick={() => setCheckTarget({ kind: 'bulk', ids: [...selectedIds] })}>
-                    <History /> Check selected ({selectedIds.size})
-                  </Button>
+                  {can('record:domain-checks') && (
+                    <Button size="sm" disabled={selectedIds.size === 0} onClick={() => setCheckTarget({ kind: 'bulk', ids: [...selectedIds] })}>
+                      <History /> Check selected ({selectedIds.size})
+                    </Button>
+                  )}
+                  {mayDelete && (
+                    <Button size="sm" variant="danger" disabled={selectedIds.size === 0} onClick={() => setDeleteOpen(true)}>
+                      <Trash2 /> Delete selected ({selectedIds.size})
+                    </Button>
+                  )}
                   <Button size="sm" variant="ghost" onClick={exitSelectMode}><X /> Cancel</Button>
                 </>
               ) : (
@@ -301,6 +312,19 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         placeholder="Why is this being restored? This is written to the audit trail."
         hint="At least 10 characters."
         onConfirm={(reason) => update.mutateAsync({ id: restoring!.id, archived: false, reason })}
+      />
+      <ConfirmWithReason
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title={`Delete ${selectedIds.size} domain${selectedIds.size === 1 ? '' : 's'} permanently?`}
+        description="Each selected domain is erased from the register and cannot be recovered — this is not the same as archiving. Its check history and any rotation batch membership go with it. The audit history keeps one line per domain: who deleted it, when, and this reason."
+        confirmLabel={`Delete ${selectedIds.size} permanently`}
+        placeholder="Why are these domains being deleted? This line is kept in the audit history for each one."
+        hint="At least 10 characters. This cannot be undone."
+        onConfirm={async (reason) => {
+          await bulkDelete.mutateAsync({ ids: [...selectedIds], reason });
+          exitSelectMode();
+        }}
       />
     </div>
   );

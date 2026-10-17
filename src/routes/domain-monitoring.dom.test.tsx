@@ -150,6 +150,29 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     await waitFor(() => expect(db.domainMonitors.find((d) => d.domainName === 'freecash-alpha.com')?.archived).toBe(false));
   });
 
+  it('lets the System Administrator select domains and permanently delete them', async () => {
+    mount(); // default preview role is System Administrator
+    await screen.findByText('freecash-alpha.com');
+    const before = db.domainMonitors.length;
+
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select freecash-bravo.com' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select freecash-charlie.com' }));
+    fireEvent.click(screen.getByRole('button', { name: /Delete selected \(2\)/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/Delete 2 domains permanently/)).toBeTruthy();
+    fireEvent.change(within(dialog).getByLabelText(/Reason/), { target: { value: 'Duplicate test domains, cleaning up the register.' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Delete 2 permanently/ }));
+
+    await waitFor(() => expect(db.domainMonitors.length).toBe(before - 2));
+    expect(db.domainMonitors.find((d) => d.domainName === 'freecash-bravo.com')).toBeUndefined();
+    expect(db.domainMonitors.find((d) => d.domainName === 'freecash-charlie.com')).toBeUndefined();
+    await waitFor(() => expect(screen.queryByText('freecash-bravo.com')).toBeNull());
+    // Select mode exits after a successful delete.
+    expect(screen.getByRole('button', { name: /^Select$/ })).toBeTruthy();
+  });
+
   it('shows the Rotation Management empty state when no groups exist yet', async () => {
     mount();
     await screen.findByText('freecash-alpha.com');

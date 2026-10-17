@@ -52,6 +52,33 @@ export const useUpdateDomainMonitor = () => useDomainMonitoringMutation(
   'Domain updated',
 );
 
+/** Permanent delete, System Administrator only — see monitors.ts's DELETE
+ *  route. No batch endpoint on the server, so this fans out one DELETE per
+ *  id, same as useBulkDeleteDataLeads. */
+export function useBulkDeleteDomainMonitors() {
+  const qc = useQueryClient();
+  const actorQuery = useActorQuery();
+  return useMutation({
+    mutationFn: async ({ ids, reason }: { ids: string[]; reason: string }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => call<{ deleted: string }>(`/${id}`, actorQuery, { method: 'DELETE', body: JSON.stringify({ reason }) })),
+      );
+      return { total: ids.length, failed: results.filter((r) => r.status === 'rejected').length };
+    },
+    onSuccess: ({ total, failed }) => {
+      qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
+      if (failed > 0) {
+        toast.error(`${total - failed} of ${total} domain${total === 1 ? '' : 's'} deleted — ${failed} failed.`, {
+          description: 'Domains still showing were not deleted. Check your connection and try again for those.',
+        });
+      } else {
+        toast.success(`${total} domain${total === 1 ? '' : 's'} deleted permanently`);
+      }
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}
+
 /* ── Bulk add (paste, one domain per line) ───────────────────────── */
 
 export interface BulkAddResult { created: number; skipped: number; problems: { line: number; reason: string }[] }

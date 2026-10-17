@@ -14,6 +14,7 @@ import { recordAudit } from '../../audit';
 import { requirePermission } from '../../auth/middleware';
 import { asyncHandler, badRequest, conflict, forbidden, notFound } from '../../http/errors';
 import { hasPermission } from '../../../src/lib/permissions';
+import { isAdmin } from '../../../src/lib/access';
 import {
   DOMAIN_MONITOR_COLUMNS, buildInsert, buildUpdate, diffRecords, pick, readDomainMonitor,
 } from '../../repositories/records';
@@ -188,4 +189,28 @@ domainMonitorsRouter.post('/bulk', requirePermission('import:records'), asyncHan
   });
 
   res.json({ created: result.created, skipped: lines.length - result.created, problems: result.problems.slice(0, 200) });
+}));
+
+/** Permanent delete, System Administrator only — same exception the project
+ *  makes for Data Leads' scraped-junk cleanup. Everything else in this module
+ *  only archives; a deleted domain's rotation batch membership and check
+ *  history go with it (ON DELETE CASCADE, migration 019). */
+domainMonitorsRouter.delete('/:id', requirePermission('access:domain-monitoring'), asyncHandler(async (req, res) => {
+  if (!isAdmin(req.user?.role)) throw forbidden('Only the System Administrator can delete domains.');
+  const id = String(req.params.id);
+  const before = await readDomainMonitor(id);
+  if (!before) throw notFound('Domain not found.');
+
+  const reason = sanitizeText(bodyOf<{ reason?: unknown }>(req).reason, 500);
+  if (!reason) throw badRequest('Deleting a domain needs a written reason.', { field: 'reason' });
+
+  const actor = actorOf(req);
+  await tx(async (conn) => {
+    await execute('DELETE FROM domain_monitors WHERE id = ?', [id], conn);
+    await recordAudit(conn, {
+      actor, recordType: 'Domain Monitor', recordId: id, recordLabel: before.domainName, action: 'delete', reason,
+    });
+  });
+
+  res.json({ deleted: id });
 }));

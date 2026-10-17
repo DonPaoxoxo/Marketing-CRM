@@ -900,6 +900,25 @@ export const handlers = [
     return HttpResponse.json(rec);
   }),
 
+  http.delete(`${API}/domain-monitoring/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    const who = actor(request);
+    if (who.role !== SYSTEM_ADMIN_ROLE) return bad('Only the System Administrator can delete domains.', 403);
+    const index = db.domainMonitors.findIndex((d) => d.id === params.id);
+    if (index === -1) return bad('Domain not found.', 404);
+    const body = (await request.json()) as { reason?: unknown };
+    const reason = sanitizeText(body.reason, 500);
+    if (!reason) return bad('Deleting a domain needs a written reason.', 400, { field: 'reason' });
+    const [rec] = db.domainMonitors.splice(index, 1);
+    db.domainCheckLogs = db.domainCheckLogs.filter((l) => l.domainMonitorId !== rec.id);
+    db.rotationBatchMembers = db.rotationBatchMembers.filter((m) => m.domainMonitorId !== rec.id);
+    recordAudit({
+      actor: who, recordType: 'Domain Monitor', recordId: rec.id, recordLabel: rec.domainName, action: 'delete', reason, changes: [],
+    });
+    return HttpResponse.json({ deleted: rec.id });
+  }),
+
   http.post(`${API}/domain-monitoring/:id/checks`, async ({ request, params }) => {
     await LATENCY();
     if (!may(request, 'access:domain-monitoring')) return noAccess();

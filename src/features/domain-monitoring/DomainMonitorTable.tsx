@@ -164,9 +164,9 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         ? <span className="tabular">{formatDate(row.original.enabledDate)}</span>
         : <span className="text-muted-foreground">Never</span>,
     },
-    ...(domainType === 'Invite' ? [{
+    {
       id: 'nextRotation', header: 'Next Rotation Date', accessorKey: 'nextRotationDate', enableSorting: false,
-      cell: ({ row }: { row: { original: DomainMonitorRecord } }) => {
+      cell: ({ row }) => {
         const d = row.original;
         return (
           <div onClick={(e) => e.stopPropagation()}>
@@ -181,7 +181,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
           </div>
         );
       },
-    } satisfies ColumnDef<DomainMonitorRecord, unknown>] : []),
+    },
     {
       id: 'checkedBy', header: 'Checked By', enableSorting: false,
       cell: ({ row }) => lookups.personName(row.original.lastCheckedById),

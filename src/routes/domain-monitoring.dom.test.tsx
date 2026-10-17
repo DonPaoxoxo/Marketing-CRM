@@ -75,16 +75,22 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     expect(screen.getByText('freecash-bravo.com')).toBeTruthy();
   });
 
-  it('switches to the Invite Domains tab and shows rotation-specific columns', async () => {
+  it('switches to the Invite Domains tab and shows its own domains', async () => {
     mount();
     await screen.findByText('freecash-alpha.com');
     clickTab('Invite Domains');
     await screen.findByText('invite-alpha.com');
     expect(screen.getByText('invite-delta.com')).toBeTruthy();
-    expect(screen.getByRole('columnheader', { name: 'Next Rotation Date' })).toBeTruthy();
     // invite-echo.com is seeded manually disabled, independent of its rotation batch status.
     const echoRow = screen.getByRole('row', { name: /invite-echo\.com/ });
     expect(within(echoRow).getByLabelText('Enabled state of invite-echo.com')).toHaveProperty('value', 'Disabled');
+  });
+
+  it('also offers Enabled/Disabled and Next Rotation Date on the Free Cash tab', async () => {
+    mount();
+    const row = await screen.findByRole('row', { name: /freecash-alpha\.com/ });
+    expect(within(row).getByLabelText('Enabled state of freecash-alpha.com')).toHaveProperty('value', 'Enabled');
+    expect(within(row).getByLabelText('Next rotation date for freecash-alpha.com')).toBeTruthy();
   });
 
   it('records a single accessibility check inline, which updates the table immediately', async () => {

@@ -25,9 +25,6 @@ export const AUDIT_TYPE_PERMISSIONS: Record<string, Permission> = {
   Import: 'access:import',
   'Data Lead': 'access:data-leads',
   'Domain Monitor': 'access:domain-monitoring',
-  'Rotation Group': 'access:domain-monitoring',
-  'Rotation Batch': 'access:domain-monitoring',
-  'Rotation Event': 'access:domain-monitoring',
   'Credential Reference': 'access:credential-refs',
   User: 'access:roles-audit',
   Role: 'access:roles-audit',
@@ -89,11 +86,6 @@ export function bootstrapFor(data: Bootstrap, holder: PermissionHolder): Bootstr
     domains: hasPermission(holder, 'access:domains') ? data.domains : [],
     dataLeads: hasPermission(holder, 'access:data-leads') ? data.dataLeads : [],
     domainMonitors: hasPermission(holder, 'access:domain-monitoring') ? data.domainMonitors : [],
-    rotationGroups: hasPermission(holder, 'access:domain-monitoring') ? data.rotationGroups : [],
-    rotationBatches: hasPermission(holder, 'access:domain-monitoring') ? data.rotationBatches : [],
-    rotationBatchMembers: hasPermission(holder, 'access:domain-monitoring') ? data.rotationBatchMembers : [],
-    rotationEvents: hasPermission(holder, 'access:domain-monitoring') ? data.rotationEvents : [],
-    rotationEventDomainChanges: hasPermission(holder, 'access:domain-monitoring') ? data.rotationEventDomainChanges : [],
     auditEntries: data.auditEntries.filter((a) => {
       const needed = AUDIT_TYPE_PERMISSIONS[a.recordType];
       return !needed || hasPermission(holder, needed);

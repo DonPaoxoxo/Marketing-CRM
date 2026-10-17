@@ -4,7 +4,7 @@ import {
   DEFAULT_THRESHOLDS, accountMissingCredential, accountMissingOwner, accountUnderReviewOrRestricted,
   checkAssignmentConflict, domainExpiryBucket, duplicateAccounts, duplicateAgentChannels, duplicateAgentContacts,
   duplicatePhoneNumbers, duplicatePostUrls, previousCustodianFor,
-  evaluateReserveReadiness, reserveAccounts, rotationScheduleBucket, simApproachingRenewal, simFanOutReview,
+  evaluateReserveReadiness, reserveAccounts, simApproachingRenewal, simFanOutReview,
 } from './rules';
 import { isForbiddenColumn, parseCSV, toCSV } from './csv';
 import { daysUntil, normalizeDomain, normalizePhone } from './utils';
@@ -209,21 +209,6 @@ describe('domain rules', () => {
   it('seeds both India and Indonesia', () => {
     expect(seed.domains.some((d) => d.targetCountry === 'India')).toBe(true);
     expect(seed.domains.some((d) => d.targetCountry === 'Indonesia')).toBe(true);
-  });
-});
-
-describe('rotation schedule bucket', () => {
-  const inHours = (h: number) => new Date(Date.now() + h * 3_600_000).toISOString();
-
-  it('reads as on-schedule when no rotation has run yet', () => {
-    expect(rotationScheduleBucket(null)).toBe('on-schedule');
-  });
-
-  it('is on-schedule well before the window, due-soon inside it, and overdue once it passes — no grace period', () => {
-    expect(rotationScheduleBucket(inHours(48))).toBe('on-schedule');
-    expect(rotationScheduleBucket(inHours(12))).toBe('due-soon');
-    expect(rotationScheduleBucket(inHours(-0.01))).toBe('overdue');
-    expect(rotationScheduleBucket(inHours(-72))).toBe('overdue');
   });
 });
 

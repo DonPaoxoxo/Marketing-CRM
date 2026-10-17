@@ -22,7 +22,7 @@ import { DomainBulkAddDialog } from './DomainBulkAddDialog';
 import { domainMonitorColumns } from './domainMonitoringExport';
 import { useBulkDeleteDomainMonitors, useRecordAccessibilityCheck, useUpdateDomainMonitor } from './api';
 
-const DEFAULTS = { search: '', status: 'all', view: 'active' };
+const DEFAULTS = { search: '', status: 'all', enabled: 'all', view: 'active' };
 
 /** Free Cash and Invite Domains share this whole table — the two differ only
  *  in whether Activation Status appears as a column, and what an added domain
@@ -57,6 +57,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
     const needle = values.search.trim().toLowerCase();
     return byView.filter((d) => {
       if (values.status !== 'all' && d.lastAccessibilityStatus !== values.status) return false;
+      if (values.enabled !== 'all' && (d.enabled ? 'Enabled' : 'Disabled') !== values.enabled) return false;
       if (needle && !`${d.domainName} ${d.notes}`.toLowerCase().includes(needle)) return false;
       return true;
     });
@@ -257,6 +258,8 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
           placeholder="Search domain, notes…" className="min-w-[16rem] flex-1" />
         <FilterSelect id={`dm-${domainType}-status`} label="Accessibility" value={values.status} onChange={(v) => set({ status: v })}
           options={[{ value: 'all', label: 'All statuses' }, ...DOMAIN_ACCESSIBILITY_STATUS.map((s) => ({ value: s, label: s }))]} />
+        <FilterSelect id={`dm-${domainType}-enabled`} label="Enabled" value={values.enabled} onChange={(v) => set({ enabled: v })}
+          options={[{ value: 'all', label: 'All' }, { value: 'Enabled', label: 'Enabled' }, { value: 'Disabled', label: 'Disabled' }]} />
       </FilterBar>
 
       <SectionCard title="Domains">
@@ -313,7 +316,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         open={deleteOpen}
         onOpenChange={setDeleteOpen}
         title={`Delete ${selectedIds.size} domain${selectedIds.size === 1 ? '' : 's'} permanently?`}
-        description="Each selected domain is erased from the register and cannot be recovered — this is not the same as archiving. Its check history and any rotation batch membership go with it. The audit history keeps one line per domain: who deleted it, when, and this reason."
+        description="Each selected domain is erased from the register and cannot be recovered — this is not the same as archiving. Its check history goes with it. The audit history keeps one line per domain: who deleted it, when, and this reason."
         confirmLabel={`Delete ${selectedIds.size} permanently`}
         placeholder="Why are these domains being deleted? This line is kept in the audit history for each one."
         hint="At least 10 characters. This cannot be undone."

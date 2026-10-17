@@ -212,7 +212,7 @@ describe('every route renders against the mock API', () => {
 
   it('Domain Monitoring lists the seeded Free Cash Domains by default', async () => {
     mount(<DomainMonitoringPage />);
-    await heading(/^Domain Monitoring & Rotation$/);
+    await heading(/^Domain Monitoring$/);
     expect(await screen.findByText('freecash-alpha.com')).toBeTruthy();
   });
 

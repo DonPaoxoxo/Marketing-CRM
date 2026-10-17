@@ -1,6 +1,7 @@
 /** Domain monitors: a different pool of domains than the Domains register
- *  (see server/routes/domains.ts) — tracked for daily manual accessibility
- *  and, Invite Domains only, a 5-day rotation cycle. See migration 019. */
+ *  (see server/routes/domains.ts) — tracked for daily manual accessibility,
+ *  a manual Enabled/Disabled switch, and a manually-set next-rotation
+ *  reminder date. See migration 019. */
 
 import { Router } from 'express';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
@@ -52,9 +53,6 @@ domainMonitorsRouter.post('/', requirePermission('edit:resources'), asyncHandler
     const values = {
       domainType,
       domainName,
-      // Invite Domains start Standby (tracked, not yet live) until assigned to a
-      // batch and rotated in; Free Cash Domains never have an activation status.
-      activationStatus: domainType === 'Invite' ? 'Standby' : null,
       enabled: true,
       enabledDate: today(),
       lastAccessibilityStatus: 'Not Checked',
@@ -96,13 +94,6 @@ domainMonitorsRouter.patch('/:id', requirePermission('edit:resources'), asyncHan
   const { reason, ...rest } = body;
   const patch = pick(rest, DOMAIN_MONITOR_COLUMNS) as Record<string, unknown>;
 
-  // Active/Standby are set only by a rotation or override (see routes/domain-monitoring/rotation.ts) —
-  // never by a plain edit, which is what keeps "exactly one Active batch per group" true.
-  // A plain edit may only move a domain to Disabled, or clear the status back to
-  // null (Free Cash has none; an Invite domain just removed from its batch).
-  if (patch.activationStatus === 'Active' || patch.activationStatus === 'Standby') {
-    throw badRequest('Active and Standby are set by a rotation, not a plain edit.', { field: 'activationStatus' });
-  }
   // Re-enabling bumps the date; disabling leaves it as the last time this
   // domain went live, rather than clearing it.
   if (patch.enabled === true && !before.enabled) {
@@ -125,7 +116,7 @@ domainMonitorsRouter.patch('/:id', requirePermission('edit:resources'), asyncHan
     if (changes.length) {
       await recordAudit(conn, {
         actor, recordType: 'Domain Monitor', recordId: id, recordLabel: body.domainName ?? before.domainName,
-        action: changes.some((c) => c.field === 'activationStatus') ? 'status-change' : restoring ? 'restore' : patch.archived ? 'archive' : 'update',
+        action: changes.some((c) => c.field === 'enabled') ? 'status-change' : restoring ? 'restore' : patch.archived ? 'archive' : 'update',
         reason: reason ?? 'Domain monitor updated',
         changes,
       });
@@ -168,7 +159,6 @@ domainMonitorsRouter.post('/bulk', requirePermission('import:records'), asyncHan
       const values = {
         domainType: domainType as DomainMonitorType,
         domainName,
-        activationStatus: domainType === 'Invite' ? 'Standby' : null,
         enabled: true,
         enabledDate: today(),
         lastAccessibilityStatus: 'Not Checked',
@@ -197,8 +187,8 @@ domainMonitorsRouter.post('/bulk', requirePermission('import:records'), asyncHan
 
 /** Permanent delete, System Administrator only — same exception the project
  *  makes for Data Leads' scraped-junk cleanup. Everything else in this module
- *  only archives; a deleted domain's rotation batch membership and check
- *  history go with it (ON DELETE CASCADE, migration 019). */
+ *  only archives; a deleted domain's check history goes with it (ON DELETE
+ *  CASCADE, migration 019). */
 domainMonitorsRouter.delete('/:id', requirePermission('access:domain-monitoring'), asyncHandler(async (req, res) => {
   if (!isAdmin(req.user?.role)) throw forbidden('Only the System Administrator can delete domains.');
   const id = String(req.params.id);

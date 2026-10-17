@@ -5,6 +5,7 @@ import { createApp } from './app';
 import { env } from './env';
 import { checkConnection, closePool } from './db/pool';
 import { purgeExpiredSessions } from './auth/sessions';
+import { checkDomainRotationReminders } from './domain-rotation-reminders';
 
 async function main(): Promise<void> {
   const info = await checkConnection().catch((error: Error) => {
@@ -39,6 +40,13 @@ async function main(): Promise<void> {
     purgeExpiredSessions().catch((error: Error) => console.error('Session sweep failed:', error.message));
   }, 60 * 60_000);
   sweep.unref();
+
+  // Domain Monitoring is manual-operation-only — this only reminds, it never
+  // touches a domain's own data.
+  const rotationReminders = setInterval(() => {
+    checkDomainRotationReminders().catch((error: Error) => console.error('Domain rotation reminder sweep failed:', error.message));
+  }, 60 * 60_000);
+  rotationReminders.unref();
 
   const shutdown = (signal: string) => {
     console.log(`\n${signal} received, shutting down.`);

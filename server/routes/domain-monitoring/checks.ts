@@ -1,7 +1,7 @@
-/** Daily manual accessibility checks — entirely separate from activation and
- *  rotation status; recording one never resets the other (see migration 019).
- *  No reason is required: a daily check is high-frequency and already
- *  attributed (who, when), unlike a rotation or override. */
+/** Daily manual accessibility checks — entirely separate from the Enabled
+ *  switch and the next-rotation reminder date; recording one never resets
+ *  the others (see migration 019). No reason is required: a daily check is
+ *  high-frequency and already attributed (who, when). */
 
 import { Router } from 'express';
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';

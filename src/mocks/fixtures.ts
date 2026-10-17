@@ -11,8 +11,7 @@
 
 import type {
   Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef,
-  DataLeadRecord, DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project,
-  RotationBatchMember, RotationBatchRecord, RotationEventDomainChange, RotationEventRecord, RotationGroupRecord, Sim,
+  DataLeadRecord, DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project, Sim,
   SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
@@ -735,7 +734,7 @@ export const contentPosts: ContentPost[] = Array.from({ length: 84 }, (_, i) => 
   } satisfies ContentPost;
 });
 
-/* ── Domain Monitoring & Rotation ───────────────────────────────────
+/* ── Domain Monitoring ───────────────────────────────────────────────
  *  A manual-operation-only monitoring layer, entirely separate from the
  *  Domains register above. `lastCheckedDate` is deliberately anchored to the
  *  real wall-clock today (not this file's historical NOW), because the
@@ -748,7 +747,7 @@ const realToday = (offsetDays: number) => toISODate(addDays(new Date(), offsetDa
 
 const DOMAIN_MONITOR_SEED: {
   type: DomainMonitorRecord['domainType']; name: string; accessibility: DomainMonitorRecord['lastAccessibilityStatus'];
-  activation?: DomainMonitorRecord['activationStatus']; checkedOffset: number | null; checkedBy?: string; notes?: string; archived?: boolean;
+  checkedOffset: number | null; checkedBy?: string; notes?: string; archived?: boolean;
   /** Defaults to enabled, as of today. A past offset with enabled:false shows
    *  the "last enabled" date surviving a later disable. */
   enabled?: boolean; enabledOffset?: number | null;
@@ -758,18 +757,17 @@ const DOMAIN_MONITOR_SEED: {
   { type: 'Free Cash', name: 'freecash-charlie.com', accessibility: 'Intermittent', checkedOffset: -3, checkedBy: 'TM-04' },
   { type: 'Free Cash', name: 'freecash-delta.com', accessibility: 'Not Checked', checkedOffset: null },
   { type: 'Free Cash', name: 'freecash-echo.com', accessibility: 'Accessible', checkedOffset: -2, checkedBy: 'TM-05', archived: true },
-  { type: 'Invite', name: 'invite-alpha.com', accessibility: 'Accessible', activation: 'Active', checkedOffset: 0, checkedBy: 'TM-02' },
-  { type: 'Invite', name: 'invite-bravo.com', accessibility: 'Accessible', activation: 'Active', checkedOffset: 0, checkedBy: 'TM-02' },
-  { type: 'Invite', name: 'invite-charlie.com', accessibility: 'Accessible', activation: 'Standby', checkedOffset: -1, checkedBy: 'TM-03' },
-  { type: 'Invite', name: 'invite-delta.com', accessibility: 'Inaccessible', activation: 'Standby', checkedOffset: -4, checkedBy: 'TM-03', notes: 'Registrar parking page — needs a fresh purchase.' },
-  { type: 'Invite', name: 'invite-echo.com', accessibility: 'Not Checked', activation: 'Standby', checkedOffset: null, enabled: false, enabledOffset: -10 },
+  { type: 'Invite', name: 'invite-alpha.com', accessibility: 'Accessible', checkedOffset: 0, checkedBy: 'TM-02' },
+  { type: 'Invite', name: 'invite-bravo.com', accessibility: 'Accessible', checkedOffset: 0, checkedBy: 'TM-02' },
+  { type: 'Invite', name: 'invite-charlie.com', accessibility: 'Accessible', checkedOffset: -1, checkedBy: 'TM-03' },
+  { type: 'Invite', name: 'invite-delta.com', accessibility: 'Inaccessible', checkedOffset: -4, checkedBy: 'TM-03', notes: 'Registrar parking page — needs a fresh purchase.' },
+  { type: 'Invite', name: 'invite-echo.com', accessibility: 'Not Checked', checkedOffset: null, enabled: false, enabledOffset: -10 },
 ];
 
 export const domainMonitors: DomainMonitorRecord[] = DOMAIN_MONITOR_SEED.map((d, i) => ({
   id: `DMN-${pad(i + 1)}`,
   domainType: d.type,
   domainName: d.name,
-  activationStatus: d.type === 'Invite' ? (d.activation ?? 'Standby') : null,
   enabled: d.enabled ?? true,
   enabledDate: d.enabledOffset === undefined ? realToday(0) : (d.enabledOffset === null ? null : realToday(d.enabledOffset)),
   nextRotationDate: null,
@@ -794,8 +792,3 @@ export const domainCheckLogs: DomainCheckLogEntry[] = domainMonitors
     createdAt: d.updatedAt,
     updatedAt: d.updatedAt,
   }));
-export const rotationGroups: RotationGroupRecord[] = [];
-export const rotationBatches: RotationBatchRecord[] = [];
-export const rotationBatchMembers: RotationBatchMember[] = [];
-export const rotationEvents: RotationEventRecord[] = [];
-export const rotationEventDomainChanges: RotationEventDomainChange[] = [];

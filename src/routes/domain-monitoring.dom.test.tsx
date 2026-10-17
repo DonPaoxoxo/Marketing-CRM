@@ -1,7 +1,7 @@
 // @vitest-environment jsdom
-/** Domain Monitoring & Rotation, driven the way a member actually uses it:
- *  check the dashboard counts, filter the Free Cash and Invite tables, record
- *  a daily check (single and bulk), and archive/restore a domain. */
+/** Domain Monitoring, driven the way a member actually uses it: check the
+ *  dashboard counts, filter the Free Cash and Invite tables, record a daily
+ *  check (single and bulk), and archive/restore a domain. */
 
 import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -54,13 +54,14 @@ function kpiValue(label: string): string {
   return valueEl?.textContent ?? '';
 }
 
-describe('Domain Monitoring & Rotation dashboard', () => {
+describe('Domain Monitoring dashboard', () => {
   it('shows real KPI counts from the seeded domains', async () => {
     mount();
     await screen.findByText('freecash-alpha.com');
     // 4 live Free Cash + 5 live Invite = 9 (one Free Cash domain is seeded archived).
     expect(kpiValue('Total Domains')).toBe('9');
-    expect(kpiValue('Active Invite Domains')).toBe('2');
+    // invite-echo.com is seeded Disabled; the other 4 Invite domains default to Enabled.
+    expect(kpiValue('Enabled Invite Domains')).toBe('4');
   });
 
   it('lists Free Cash Domains and filters by accessibility', async () => {
@@ -84,6 +85,18 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     // invite-echo.com is seeded manually disabled, independent of its rotation batch status.
     const echoRow = screen.getByRole('row', { name: /invite-echo\.com/ });
     expect(within(echoRow).getByLabelText('Enabled state of invite-echo.com')).toHaveProperty('value', 'Disabled');
+  });
+
+  it('filters the Invite tab by Enabled/Disabled', async () => {
+    mount();
+    await screen.findByText('freecash-alpha.com');
+    clickTab('Invite Domains');
+    await screen.findByText('invite-alpha.com');
+    expect(screen.getByText('invite-echo.com')).toBeTruthy(); // seeded Disabled
+
+    fireEvent.change(screen.getByLabelText('Enabled'), { target: { value: 'Disabled' } });
+    await waitFor(() => expect(screen.queryByText('invite-alpha.com')).toBeNull());
+    expect(screen.getByText('invite-echo.com')).toBeTruthy();
   });
 
   it('also offers Enabled/Disabled and Next Rotation Date on the Free Cash tab', async () => {
@@ -207,10 +220,4 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     expect(both.map((d) => d.domainType).sort()).toEqual(['Free Cash', 'Invite']);
   });
 
-  it('shows the Rotation Management empty state when no groups exist yet', async () => {
-    mount();
-    await screen.findByText('freecash-alpha.com');
-    clickTab('Rotation Management');
-    expect(await screen.findByText('No rotation groups yet')).toBeTruthy();
-  });
 });

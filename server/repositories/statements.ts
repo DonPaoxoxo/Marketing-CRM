@@ -197,7 +197,6 @@ export const DATA_LEAD_COLUMNS: ColumnMap = {
 export const DOMAIN_MONITOR_COLUMNS: ColumnMap = {
   domainType: 'domain_type',
   domainName: 'domain_name',
-  activationStatus: nullable('activation_status'),
   enabled: 'enabled',
   enabledDate: nullable('enabled_date'),
   nextRotationDate: nullable('next_rotation_date'),
@@ -214,22 +213,6 @@ export const DOMAIN_CHECK_LOG_COLUMNS: ColumnMap = {
   accessibilityStatus: 'accessibility_status',
   checkedById: nullable('checked_by_id'),
   notes: 'notes',
-};
-
-export const ROTATION_GROUP_COLUMNS: ColumnMap = {
-  name: 'name',
-  notes: 'notes',
-  rotationIntervalDays: 'rotation_interval_days',
-  cycleStartedAt: nullable('cycle_started_at'),
-  nextRotationDueAt: nullable('next_rotation_due_at'),
-  archived: 'archived',
-};
-
-export const ROTATION_BATCH_COLUMNS: ColumnMap = {
-  rotationGroupId: 'rotation_group_id',
-  name: 'name',
-  status: 'status',
-  archived: 'archived',
 };
 
 export const SOCIAL_POST_COLUMNS: ColumnMap = {

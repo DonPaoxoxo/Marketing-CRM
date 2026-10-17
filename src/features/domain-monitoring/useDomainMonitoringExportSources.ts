@@ -8,19 +8,12 @@ import { useRegisterExport } from '@/components/layout/page-actions';
 import { useCrmData } from '@/hooks/useData';
 import { addDays, toISODate } from '@/lib/utils';
 import { useAllCheckLogHistory } from './api';
-import {
-  domainCheckLogColumns, domainMonitorColumns, rotationBatchColumns, rotationEventColumns,
-} from './domainMonitoringExport';
+import { domainCheckLogColumns, domainMonitorColumns } from './domainMonitoringExport';
 
 export function useDomainMonitoringExportSources() {
   const { data, lookups } = useCrmData();
   const monitors = data?.domainMonitors ?? [];
-  const batches = data?.rotationBatches ?? [];
-  const groups = data?.rotationGroups ?? [];
-  const events = data?.rotationEvents ?? [];
 
-  const groupName = (id: string) => groups.find((g) => g.id === id)?.name ?? id;
-  const batchName = (id: string | null) => (id ? batches.find((b) => b.id === id)?.name ?? id : '—');
   const domainName = (id: string) => monitors.find((d) => d.id === id)?.domainName ?? id;
   const monitorColumns = domainMonitorColumns(lookups.personName) as unknown as ExportColumn<never>[];
 
@@ -43,20 +36,12 @@ export function useDomainMonitoringExportSources() {
     rows: monitors.filter((d) => d.domainType === 'Invite'), columns: monitorColumns,
   });
   useRegisterExport({
-    label: 'Active Invite Domains', filename: 'domain-monitoring-invite-active', recordType: 'Domain Monitor',
-    rows: monitors.filter((d) => d.domainType === 'Invite' && d.activationStatus === 'Active'), columns: monitorColumns,
+    label: 'Enabled Invite Domains', filename: 'domain-monitoring-invite-enabled', recordType: 'Domain Monitor',
+    rows: monitors.filter((d) => d.domainType === 'Invite' && d.enabled), columns: monitorColumns,
   });
   useRegisterExport({
-    label: 'Standby Invite Domains', filename: 'domain-monitoring-invite-standby', recordType: 'Domain Monitor',
-    rows: monitors.filter((d) => d.domainType === 'Invite' && d.activationStatus === 'Standby'), columns: monitorColumns,
-  });
-  useRegisterExport({
-    label: 'Rotation Batches', filename: 'domain-monitoring-rotation-batches', recordType: 'Rotation Batch',
-    rows: batches, columns: rotationBatchColumns(groupName) as unknown as ExportColumn<never>[],
-  });
-  useRegisterExport({
-    label: 'Rotation History', filename: 'domain-monitoring-rotation-history', recordType: 'Rotation Event',
-    rows: events, columns: rotationEventColumns(groupName, batchName, lookups.personName) as unknown as ExportColumn<never>[],
+    label: 'Disabled Invite Domains', filename: 'domain-monitoring-invite-disabled', recordType: 'Domain Monitor',
+    rows: monitors.filter((d) => d.domainType === 'Invite' && !d.enabled), columns: monitorColumns,
   });
   useRegisterExport({
     label: 'Daily Monitoring History (90 days)', filename: 'domain-monitoring-daily-history', recordType: 'Domain Check Log',

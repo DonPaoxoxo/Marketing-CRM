@@ -23,11 +23,6 @@ const base = (): Bootstrap => structuredClone({
   socialPostScreenshots: fixtures.socialPostScreenshots,
   dataLeads: fixtures.dataLeads,
   domainMonitors: fixtures.domainMonitors,
-  rotationGroups: fixtures.rotationGroups,
-  rotationBatches: fixtures.rotationBatches,
-  rotationBatchMembers: fixtures.rotationBatchMembers,
-  rotationEvents: fixtures.rotationEvents,
-  rotationEventDomainChanges: fixtures.rotationEventDomainChanges,
   auditEntries: fixtures.auditEntries,
 });
 
@@ -36,8 +31,7 @@ const empty = (): Bootstrap => ({
   brands: [], projects: [], teamMembers: [], sims: [], agents: [], socialAccounts: [],
   credentials: [], assignments: [], domains: [], followerSnapshots: [], contentPosts: [],
   agentProofs: [], pakistanCompetitors: [], socialMediaPosts: [], socialPostScreenshots: [], dataLeads: [],
-  domainMonitors: [], rotationGroups: [], rotationBatches: [], rotationBatchMembers: [], rotationEvents: [],
-  rotationEventDomainChanges: [], auditEntries: [],
+  domainMonitors: [], auditEntries: [],
 });
 
 const find = (data: Bootstrap, recordId: string, field: string) =>

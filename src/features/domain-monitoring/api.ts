@@ -1,6 +1,6 @@
-/** Domain Monitoring & Rotation: the calls behind the pages, kept in their own
- *  file rather than growing the already-large hooks/useData.ts — this module
- *  has far more mutations than any single register, the same reasoning
+/** Domain Monitoring: the calls behind the pages, kept in their own file
+ *  rather than growing the already-large hooks/useData.ts — this module has
+ *  more mutations than any single register, the same reasoning
  *  src/features/ads/api.ts follows. */
 
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,6 @@ import {
 } from '@/hooks/useData';
 import type {
   DomainAccessibilityStatus, DomainCheckLogEntry, DomainMonitorType, DomainMonitorRecord,
-  RotationBatchRecord, RotationGroupRecord,
 } from '@/lib/types';
 
 async function call<T>(url: string, actorQuery: string, init: RequestInit = {}): Promise<T> {
@@ -87,58 +86,6 @@ export const useBulkAddDomainMonitors = () => useDomainMonitoringMutation(
   (body: { domainType: DomainMonitorType; lines: string[]; notes?: string; reason?: string }, q) =>
     call<BulkAddResult>('/bulk', q, { method: 'POST', body: JSON.stringify(body) }),
   (r: BulkAddResult) => `${r.created} domain${r.created === 1 ? '' : 's'} added${r.skipped ? `, ${r.skipped} skipped` : ''}`,
-);
-
-/* ── Rotation groups & batches (configuration only) ──────────────── */
-
-export const useCreateRotationGroup = () => useDomainMonitoringMutation(
-  (body: { name: string; notes?: string; rotationIntervalDays?: number; reason?: string }, q) =>
-    call<RotationGroupRecord>('/groups', q, { method: 'POST', body: JSON.stringify(body) }),
-  'Rotation group created',
-);
-
-export const useUpdateRotationGroup = () => useDomainMonitoringMutation(
-  ({ id, ...body }: { id: string } & Record<string, unknown>, q) =>
-    call<RotationGroupRecord>(`/groups/${id}`, q, { method: 'PATCH', body: JSON.stringify(body) }),
-  'Rotation group updated',
-);
-
-export const useCreateRotationBatch = () => useDomainMonitoringMutation(
-  ({ groupId, ...body }: { groupId: string; name: string; reason?: string }, q) =>
-    call<RotationBatchRecord>(`/groups/${groupId}/batches`, q, { method: 'POST', body: JSON.stringify(body) }),
-  'Rotation batch created',
-);
-
-export const useUpdateRotationBatch = () => useDomainMonitoringMutation(
-  ({ id, ...body }: { id: string } & Record<string, unknown>, q) =>
-    call<RotationBatchRecord>(`/batches/${id}`, q, { method: 'PATCH', body: JSON.stringify(body) }),
-  'Rotation batch updated',
-);
-
-export const useReplaceBatchMembers = () => useDomainMonitoringMutation(
-  ({ id, domainMonitorIds }: { id: string; domainMonitorIds: string[] }, q) =>
-    call<{ rotationBatchId: string; domainMonitorIds: string[] }>(`/batches/${id}/members`, q, { method: 'PUT', body: JSON.stringify({ domainMonitorIds }) }),
-  'Batch membership updated',
-);
-
-/* ── Running a rotation ──────────────────────────────────────────── */
-
-export const useRotateFull = () => useDomainMonitoringMutation(
-  ({ groupId, ...body }: { groupId: string; incomingBatchId: string; reason: string }, q) =>
-    call<RotationGroupRecord>(`/groups/${groupId}/rotate-full`, q, { method: 'POST', body: JSON.stringify(body) }),
-  'Rotation complete',
-);
-
-export const useRotatePartial = () => useDomainMonitoringMutation(
-  ({ groupId, ...body }: { groupId: string; moves: { domainMonitorId: string; toBatchId: string }[]; reason: string }, q) =>
-    call<RotationGroupRecord>(`/groups/${groupId}/rotate-partial`, q, { method: 'POST', body: JSON.stringify(body) }),
-  'Partial rotation complete',
-);
-
-export const useRotationOverride = () => useDomainMonitoringMutation(
-  ({ groupId, ...body }: { groupId: string; action: string; newDueAt?: string; newIntervalDays?: number; reason: string }, q) =>
-    call<RotationGroupRecord>(`/groups/${groupId}/override`, q, { method: 'POST', body: JSON.stringify(body) }),
-  'Schedule override applied',
 );
 
 /* ── Accessibility checks ────────────────────────────────────────── */

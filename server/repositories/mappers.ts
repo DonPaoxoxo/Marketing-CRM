@@ -8,8 +8,7 @@
 import type { RowDataPacket } from 'mysql2/promise';
 import type {
   Agent, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DataLeadRecord,
-  DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project, RotationBatchMember,
-  RotationBatchRecord, RotationEventDomainChange, RotationEventRecord, RotationGroupRecord, Sim, SocialAccount,
+  DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project, Sim, SocialAccount,
   SocialMediaPost, TeamMember,
 } from '../../src/lib/types';
 
@@ -293,7 +292,6 @@ export const mapDomainMonitor = (r: RowDataPacket): DomainMonitorRecord => ({
   id: String(r.id),
   domainType: r.domain_type as DomainMonitorRecord['domainType'],
   domainName: text(r.domain_name),
-  activationStatus: (r.activation_status as DomainMonitorRecord['activationStatus']) ?? null,
   enabled: bool(r.enabled),
   enabledDate: date(r.enabled_date),
   nextRotationDate: date(r.next_rotation_date),
@@ -315,61 +313,6 @@ export const mapDomainCheckLog = (r: RowDataPacket): DomainCheckLogEntry => ({
   notes: text(r.notes),
   createdAt: isoRequired(r.created_at),
   updatedAt: isoRequired(r.updated_at),
-});
-
-export const mapRotationGroup = (r: RowDataPacket): RotationGroupRecord => ({
-  id: String(r.id),
-  name: text(r.name),
-  notes: text(r.notes),
-  rotationIntervalDays: Number(r.rotation_interval_days),
-  cycleStartedAt: iso(r.cycle_started_at),
-  nextRotationDueAt: iso(r.next_rotation_due_at),
-  archived: bool(r.archived),
-  createdAt: isoRequired(r.created_at),
-  updatedAt: isoRequired(r.updated_at),
-});
-
-export const mapRotationBatch = (r: RowDataPacket): RotationBatchRecord => ({
-  id: String(r.id),
-  rotationGroupId: String(r.rotation_group_id),
-  name: text(r.name),
-  status: r.status as RotationBatchRecord['status'],
-  archived: bool(r.archived),
-  createdAt: isoRequired(r.created_at),
-  updatedAt: isoRequired(r.updated_at),
-});
-
-export const mapRotationBatchMember = (r: RowDataPacket): RotationBatchMember => ({
-  rotationBatchId: String(r.rotation_batch_id),
-  domainMonitorId: String(r.domain_monitor_id),
-  createdAt: isoRequired(r.created_at),
-});
-
-export const mapRotationEvent = (r: RowDataPacket): RotationEventRecord => ({
-  id: String(r.id),
-  rotationGroupId: String(r.rotation_group_id),
-  eventType: r.event_type as RotationEventRecord['eventType'],
-  outgoingBatchId: id(r.outgoing_batch_id),
-  incomingBatchId: id(r.incoming_batch_id),
-  previousDueAt: iso(r.previous_due_at),
-  newDueAt: iso(r.new_due_at),
-  previousIntervalDays: int(r.previous_interval_days),
-  newIntervalDays: int(r.new_interval_days),
-  isOverride: bool(r.is_override),
-  reason: text(r.reason),
-  performedById: String(r.performed_by_id),
-  performedAt: isoRequired(r.performed_at),
-  createdAt: isoRequired(r.created_at),
-});
-
-export const mapRotationEventDomainChange = (r: RowDataPacket): RotationEventDomainChange => ({
-  rotationEventId: String(r.rotation_event_id),
-  position: Number(r.position),
-  domainMonitorId: String(r.domain_monitor_id),
-  fromBatchId: id(r.from_batch_id),
-  toBatchId: id(r.to_batch_id),
-  fromActivationStatus: (r.from_activation_status as RotationEventDomainChange['fromActivationStatus']) ?? null,
-  toActivationStatus: (r.to_activation_status as RotationEventDomainChange['toActivationStatus']) ?? null,
 });
 
 export const mapSocialPost = (r: RowDataPacket): SocialMediaPost => ({

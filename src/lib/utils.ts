@@ -52,14 +52,6 @@ export function relativeDays(n: number | null): string {
   return `${-n} day${n === -1 ? '' : 's'} ago`;
 }
 
-/** Hours from now to `iso` — fractional, not truncated to a day like
- *  daysUntil, since a rotation can fall due partway through a day. */
-export function hoursUntil(iso: string | null | undefined): number | null {
-  if (!iso) return null;
-  const target = new Date(iso).getTime();
-  return Number.isNaN(target) ? null : (target - Date.now()) / 3_600_000;
-}
-
 export function addDays(d: Date, n: number): Date {
   const c = new Date(d);
   c.setUTCDate(c.getUTCDate() + n);

@@ -63,8 +63,7 @@ export function DomainMonitorFormDialog({
         <DialogHeader>
           <DialogTitle>{editing ? `Edit ${monitor!.domainName}` : 'Add a domain'}</DialogTitle>
           <DialogDescription>
-            Added as Not Checked — daily accessibility is recorded separately. Invite Domains start Standby until
-            assigned to a rotation batch.
+            Added as Not Checked and Enabled — daily accessibility is recorded separately.
           </DialogDescription>
         </DialogHeader>
 

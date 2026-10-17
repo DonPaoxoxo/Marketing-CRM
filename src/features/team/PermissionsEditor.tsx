@@ -24,10 +24,7 @@ const GROUPS: { title: string; permissions: Permission[] }[] = [
   { title: 'Pages', permissions: ['access:domains', 'access:import', 'access:credential-refs', 'access:roles-audit', 'access:data-leads', 'access:domain-monitoring'] },
   { title: 'Records', permissions: ['edit:resources', 'archive:records', 'assign:resources', 'import:records'] },
   { title: 'Data and credentials', permissions: ['view:contact-details', 'export:data', 'manage:credential-refs', 'request:credential-access'] },
-  {
-    title: 'Domain Monitoring & Rotation',
-    permissions: ['record:domain-checks', 'manage:rotation-batches', 'execute:full-rotation', 'execute:partial-rotation', 'override:rotation-schedule'],
-  },
+  { title: 'Domain Monitoring', permissions: ['record:domain-checks'] },
 ];
 
 export const PERMISSIONS_KEY = ['permissions'] as const;

@@ -749,6 +749,9 @@ const realToday = (offsetDays: number) => toISODate(addDays(new Date(), offsetDa
 const DOMAIN_MONITOR_SEED: {
   type: DomainMonitorRecord['domainType']; name: string; accessibility: DomainMonitorRecord['lastAccessibilityStatus'];
   activation?: DomainMonitorRecord['activationStatus']; checkedOffset: number | null; checkedBy?: string; notes?: string; archived?: boolean;
+  /** Defaults to enabled, as of today. A past offset with enabled:false shows
+   *  the "last enabled" date surviving a later disable. */
+  enabled?: boolean; enabledOffset?: number | null;
 }[] = [
   { type: 'Free Cash', name: 'freecash-alpha.com', accessibility: 'Accessible', checkedOffset: 0, checkedBy: 'TM-04' },
   { type: 'Free Cash', name: 'freecash-bravo.com', accessibility: 'Inaccessible', checkedOffset: -1, checkedBy: 'TM-05', notes: 'SSL certificate expired.' },
@@ -759,7 +762,7 @@ const DOMAIN_MONITOR_SEED: {
   { type: 'Invite', name: 'invite-bravo.com', accessibility: 'Accessible', activation: 'Active', checkedOffset: 0, checkedBy: 'TM-02' },
   { type: 'Invite', name: 'invite-charlie.com', accessibility: 'Accessible', activation: 'Standby', checkedOffset: -1, checkedBy: 'TM-03' },
   { type: 'Invite', name: 'invite-delta.com', accessibility: 'Inaccessible', activation: 'Standby', checkedOffset: -4, checkedBy: 'TM-03', notes: 'Registrar parking page — needs a fresh purchase.' },
-  { type: 'Invite', name: 'invite-echo.com', accessibility: 'Not Checked', activation: 'Disabled', checkedOffset: null },
+  { type: 'Invite', name: 'invite-echo.com', accessibility: 'Not Checked', activation: 'Standby', checkedOffset: null, enabled: false, enabledOffset: -10 },
 ];
 
 export const domainMonitors: DomainMonitorRecord[] = DOMAIN_MONITOR_SEED.map((d, i) => ({
@@ -767,6 +770,8 @@ export const domainMonitors: DomainMonitorRecord[] = DOMAIN_MONITOR_SEED.map((d,
   domainType: d.type,
   domainName: d.name,
   activationStatus: d.type === 'Invite' ? (d.activation ?? 'Standby') : null,
+  enabled: d.enabled ?? true,
+  enabledDate: d.enabledOffset === undefined ? realToday(0) : (d.enabledOffset === null ? null : realToday(d.enabledOffset)),
   lastAccessibilityStatus: d.accessibility,
   lastCheckedDate: d.checkedOffset === null ? null : realToday(d.checkedOffset),
   lastCheckedById: d.checkedBy ?? null,

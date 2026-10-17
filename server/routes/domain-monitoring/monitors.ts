@@ -17,7 +17,7 @@ import { hasPermission } from '../../../src/lib/permissions';
 import {
   DOMAIN_MONITOR_COLUMNS, buildInsert, buildUpdate, diffRecords, pick, readDomainMonitor,
 } from '../../repositories/records';
-import { actorOf, assertMayArchive, bodyOf, isDuplicateKey, nowDate } from '../helpers';
+import { actorOf, assertMayArchive, bodyOf, isDuplicateKey, nowDate, today } from '../helpers';
 
 export const domainMonitorsRouter = Router();
 
@@ -53,6 +53,8 @@ domainMonitorsRouter.post('/', requirePermission('edit:resources'), asyncHandler
       // Invite Domains start Standby (tracked, not yet live) until assigned to a
       // batch and rotated in; Free Cash Domains never have an activation status.
       activationStatus: domainType === 'Invite' ? 'Standby' : null,
+      enabled: true,
+      enabledDate: today(),
       lastAccessibilityStatus: 'Not Checked',
       lastCheckedDate: null,
       notes: body.notes ?? '',
@@ -97,6 +99,11 @@ domainMonitorsRouter.patch('/:id', requirePermission('edit:resources'), asyncHan
   // null (Free Cash has none; an Invite domain just removed from its batch).
   if (patch.activationStatus === 'Active' || patch.activationStatus === 'Standby') {
     throw badRequest('Active and Standby are set by a rotation, not a plain edit.', { field: 'activationStatus' });
+  }
+  // Re-enabling bumps the date; disabling leaves it as the last time this
+  // domain went live, rather than clearing it.
+  if (patch.enabled === true && !before.enabled) {
+    patch.enabledDate = today();
   }
 
   assertMayArchive(req, patch, reason);
@@ -157,6 +164,8 @@ domainMonitorsRouter.post('/bulk', requirePermission('import:records'), asyncHan
         domainType: domainType as DomainMonitorType,
         domainName,
         activationStatus: domainType === 'Invite' ? 'Standby' : null,
+        enabled: true,
+        enabledDate: today(),
         lastAccessibilityStatus: 'Not Checked',
         lastCheckedDate: null,
         notes,

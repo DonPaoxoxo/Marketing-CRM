@@ -294,6 +294,8 @@ export const mapDomainMonitor = (r: RowDataPacket): DomainMonitorRecord => ({
   domainType: r.domain_type as DomainMonitorRecord['domainType'],
   domainName: text(r.domain_name),
   activationStatus: (r.activation_status as DomainMonitorRecord['activationStatus']) ?? null,
+  enabled: bool(r.enabled),
+  enabledDate: date(r.enabled_date),
   lastAccessibilityStatus: r.last_accessibility_status as DomainMonitorRecord['lastAccessibilityStatus'],
   lastCheckedDate: date(r.last_checked_date),
   lastCheckedById: id(r.last_checked_by_id),

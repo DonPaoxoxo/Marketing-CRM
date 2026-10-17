@@ -198,6 +198,8 @@ export const DOMAIN_MONITOR_COLUMNS: ColumnMap = {
   domainType: 'domain_type',
   domainName: 'domain_name',
   activationStatus: nullable('activation_status'),
+  enabled: 'enabled',
+  enabledDate: nullable('enabled_date'),
   lastAccessibilityStatus: 'last_accessibility_status',
   lastCheckedDate: nullable('last_checked_date'),
   lastCheckedById: nullable('last_checked_by_id'),

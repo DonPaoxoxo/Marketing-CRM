@@ -75,28 +75,39 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     expect(screen.getByText('freecash-bravo.com')).toBeTruthy();
   });
 
-  it('switches to the Invite Domains tab and shows activation status', async () => {
+  it('switches to the Invite Domains tab and shows rotation-specific columns', async () => {
     mount();
     await screen.findByText('freecash-alpha.com');
     clickTab('Invite Domains');
     await screen.findByText('invite-alpha.com');
     expect(screen.getByText('invite-delta.com')).toBeTruthy();
-    expect(screen.getAllByText('Active').length).toBeGreaterThan(0);
-    expect(screen.getAllByText('Standby').length).toBeGreaterThan(0);
+    expect(screen.getByRole('columnheader', { name: 'Next Rotation Date' })).toBeTruthy();
+    // invite-echo.com is seeded manually disabled, independent of its rotation batch status.
+    const echoRow = screen.getByRole('row', { name: /invite-echo\.com/ });
+    expect(within(echoRow).getByLabelText('Enabled state of invite-echo.com')).toHaveProperty('value', 'Disabled');
   });
 
-  it('records a single accessibility check, which updates the table immediately', async () => {
+  it('records a single accessibility check inline, which updates the table immediately', async () => {
     mount();
     await screen.findByText('freecash-delta.com'); // seeded Not Checked
     const row = screen.getByRole('row', { name: /freecash-delta\.com/ });
-    fireEvent.click(within(row).getByRole('button', { name: /Check freecash-delta\.com/ }));
-
-    const dialog = await screen.findByRole('dialog');
-    fireEvent.change(within(dialog).getByLabelText('Accessibility'), { target: { value: 'Accessible' } });
-    fireEvent.click(within(dialog).getByRole('button', { name: /Record check/ }));
+    fireEvent.change(within(row).getByLabelText('Accessibility of freecash-delta.com'), { target: { value: 'Accessible' } });
 
     await waitFor(() => expect(db.domainMonitors.find((d) => d.domainName === 'freecash-delta.com')?.lastAccessibilityStatus).toBe('Accessible'));
-    await waitFor(() => expect(within(screen.getByRole('row', { name: /freecash-delta\.com/ })).getByText('Accessible')).toBeTruthy());
+  });
+
+  it('toggles a domain Enabled/Disabled inline, recording the date it was last enabled', async () => {
+    mount();
+    clickTab('Invite Domains');
+    await screen.findByText('invite-echo.com'); // seeded Disabled
+    const row = screen.getByRole('row', { name: /invite-echo\.com/ });
+    fireEvent.change(within(row).getByLabelText('Enabled state of invite-echo.com'), { target: { value: 'Enabled' } });
+
+    await waitFor(() => {
+      const echo = db.domainMonitors.find((d) => d.domainName === 'invite-echo.com');
+      expect(echo?.enabled).toBe(true);
+      expect(echo?.enabledDate).toBe(new Date().toISOString().slice(0, 10));
+    });
   });
 
   it('bulk-records a check across selected domains', async () => {

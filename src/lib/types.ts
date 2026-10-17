@@ -325,7 +325,13 @@ export interface DomainMonitorRecord {
   id: ID;                       // DMN-0001
   domainType: DomainMonitorType;
   domainName: string;           // normalised, unique within this register
-  activationStatus: DomainActivationStatus | null;   // Invite only
+  activationStatus: DomainActivationStatus | null;   // Invite only — set by a rotation, not a plain edit
+  /** A manual on/off switch, independent of activationStatus/rotation — pulling
+   *  a domain out of use without touching which batch it belongs to. */
+  enabled: boolean;
+  /** The date `enabled` was last set to true. Not touched when disabling, so it
+   *  keeps reading the last time this domain went live. */
+  enabledDate: string | null;
   lastAccessibilityStatus: DomainAccessibilityStatus;
   /** Denormalised cache of the latest domain_check_logs row. Never the source
    *  of "Pending Today" — that is computed by comparing this against today. */

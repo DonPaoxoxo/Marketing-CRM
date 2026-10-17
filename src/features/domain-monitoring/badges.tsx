@@ -1,24 +1,7 @@
 import { Badge } from '@/components/ui/primitives';
 import { daysSince } from '@/lib/utils';
 import { ROTATION_SCHEDULE_LABELS, rotationScheduleBucket } from '@/lib/rules';
-import type { DomainAccessibilityStatus, DomainActivationStatus, RotationBatchStatus } from '@/lib/types';
-
-const ACCESSIBILITY_TONE: Record<DomainAccessibilityStatus, 'success' | 'danger' | 'warning' | 'neutral'> = {
-  Accessible: 'success', Inaccessible: 'danger', Intermittent: 'warning', 'Not Checked': 'neutral',
-};
-
-export function AccessibilityBadge({ value }: { value: DomainAccessibilityStatus }) {
-  return <Badge tone={ACCESSIBILITY_TONE[value]}>{value}</Badge>;
-}
-
-const ACTIVATION_TONE: Record<DomainActivationStatus, 'success' | 'info' | 'neutral' | 'danger'> = {
-  Active: 'success', Standby: 'info', Disabled: 'neutral', Archived: 'danger',
-};
-
-export function ActivationStatusBadge({ value }: { value: DomainActivationStatus | null }) {
-  if (!value) return <span className="text-muted-foreground">—</span>;
-  return <Badge tone={ACTIVATION_TONE[value]}>{value}</Badge>;
-}
+import type { RotationBatchStatus } from '@/lib/types';
 
 const BATCH_STATUS_TONE: Record<RotationBatchStatus, 'success' | 'info'> = { Active: 'success', Standby: 'info' };
 
@@ -46,16 +29,4 @@ export function dailyCheckBucket(lastCheckedDate: string | null): DailyCheckBuck
   if (since === 0) return 'checked-today';
   if (since === null || since >= 2) return 'overdue';
   return 'pending-today';
-}
-
-const DAILY_CHECK_LABEL: Record<DailyCheckBucket, string> = {
-  'checked-today': 'Checked Today', 'pending-today': 'Pending Today', overdue: 'Overdue',
-};
-const DAILY_CHECK_TONE: Record<DailyCheckBucket, 'success' | 'warning' | 'danger'> = {
-  'checked-today': 'success', 'pending-today': 'warning', overdue: 'danger',
-};
-
-export function DailyCheckBadge({ lastCheckedDate }: { lastCheckedDate: string | null }) {
-  const bucket = dailyCheckBucket(lastCheckedDate);
-  return <Badge tone={DAILY_CHECK_TONE[bucket]}>{DAILY_CHECK_LABEL[bucket]}</Badge>;
 }

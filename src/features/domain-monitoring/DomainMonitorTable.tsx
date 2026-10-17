@@ -6,20 +6,20 @@ import { ErrorState, PageHeader, SafeExternalLink, SectionCard } from '@/compone
 import { DataTable } from '@/components/common/DataTable';
 import { ConfirmWithReason, FilterBar, FilterSelect, SearchInput } from '@/components/common/controls';
 import { useRegisterExport } from '@/components/layout/page-actions';
-import { Checkbox } from '@/components/ui/primitives';
+import { Checkbox, NativeSelect } from '@/components/ui/primitives';
 import { Button } from '@/components/ui/button';
 import { useCrmData } from '@/hooks/useData';
 import { useFilters } from '@/hooks/useFilters';
 import { useSession } from '@/hooks/useSession';
-import { displayUrl } from '@/lib/utils';
+import { displayUrl, formatDate } from '@/lib/utils';
 import type { ExportColumn } from '@/lib/csv';
-import { DOMAIN_ACCESSIBILITY_STATUS, type DomainMonitorRecord, type DomainMonitorType } from '@/lib/types';
-import { AccessibilityBadge, ActivationStatusBadge, DailyCheckBadge } from './badges';
+import { DOMAIN_ACCESSIBILITY_STATUS, type DomainAccessibilityStatus, type DomainMonitorRecord, type DomainMonitorType } from '@/lib/types';
+import { dailyCheckBucket } from './badges';
 import { AccessibilityCheckDialog, type CheckTarget } from './AccessibilityCheckDialog';
 import { DomainMonitorFormDialog } from './DomainMonitorFormDialog';
 import { DomainBulkAddDialog } from './DomainBulkAddDialog';
 import { domainMonitorColumns } from './domainMonitoringExport';
-import { useUpdateDomainMonitor } from './api';
+import { useRecordAccessibilityCheck, useUpdateDomainMonitor } from './api';
 
 const DEFAULTS = { search: '', status: 'all', view: 'active' };
 
@@ -32,6 +32,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
   const { values, set, clear, activeCount } = useFilters(DEFAULTS, { notFilters: ['view'] });
   const { can } = useSession();
   const update = useUpdateDomainMonitor();
+  const check = useRecordAccessibilityCheck();
   const showArchived = values.view === 'archived';
 
   const [formOpen, setFormOpen] = React.useState(false);
@@ -71,6 +72,21 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
 
   const openEdit = (d: DomainMonitorRecord) => { setEditing(d); setFormOpen(true); };
 
+  // Invite only: a domain's next rotation date is whatever its batch's group
+  // is next due — derived from bootstrap data, nothing stored per domain.
+  const nextRotationByDomainId = React.useMemo(() => {
+    if (domainType !== 'Invite') return new Map<string, string | null>();
+    const groupById = new Map((data?.rotationGroups ?? []).map((g) => [g.id, g]));
+    const batchById = new Map((data?.rotationBatches ?? []).map((b) => [b.id, b]));
+    const map = new Map<string, string | null>();
+    for (const m of data?.rotationBatchMembers ?? []) {
+      const batch = batchById.get(m.rotationBatchId);
+      const group = batch ? groupById.get(batch.rotationGroupId) : undefined;
+      map.set(m.domainMonitorId, group?.nextRotationDueAt ?? null);
+    }
+    return map;
+  }, [domainType, data]);
+
   // "Current Filtered Results" and "Selected Domains" are tab-specific — the
   // other export scopes are page-level and registered once in DomainMonitoring.tsx.
   const exportColumns = React.useMemo(() => domainMonitorColumns(lookups.personName) as unknown as ExportColumn<never>[], [lookups]);
@@ -104,22 +120,68 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
     },
     {
       id: 'accessibility', header: 'Accessibility', accessorKey: 'lastAccessibilityStatus',
-      cell: ({ row }) => <AccessibilityBadge value={row.original.lastAccessibilityStatus} />,
+      cell: ({ row }) => {
+        const d = row.original;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <NativeSelect
+              aria-label={`Accessibility of ${d.domainName}`}
+              className="h-8 w-auto text-[13px]"
+              value={d.lastAccessibilityStatus}
+              disabled={!can('record:domain-checks')}
+              onChange={(e) => check.mutate({ id: d.id, accessibilityStatus: e.target.value as DomainAccessibilityStatus })}
+            >
+              {DOMAIN_ACCESSIBILITY_STATUS.map((s) => <option key={s} value={s}>{s}</option>)}
+            </NativeSelect>
+          </div>
+        );
+      },
     },
     {
       id: 'dailyCheck', header: 'Daily Check', enableSorting: false,
-      cell: ({ row }) => <DailyCheckBadge lastCheckedDate={row.original.lastCheckedDate} />,
+      cell: ({ row }) => {
+        const checkedToday = dailyCheckBucket(row.original.lastCheckedDate) === 'checked-today';
+        return (
+          <NativeSelect aria-label="Daily check status" className="h-8 w-auto text-[13px]" value={checkedToday ? 'Check' : 'Pending'} disabled>
+            <option value="Check">Check</option>
+            <option value="Pending">Pending</option>
+          </NativeSelect>
+        );
+      },
     },
-    ...(domainType === 'Invite' ? [{
-      id: 'activation', header: 'Activation', accessorFn: (r: DomainMonitorRecord) => r.activationStatus ?? '—',
-      cell: ({ row }: { row: { original: DomainMonitorRecord } }) => <ActivationStatusBadge value={row.original.activationStatus} />,
-    } satisfies ColumnDef<DomainMonitorRecord, unknown>] : []),
     {
-      id: 'lastChecked', header: 'Last Checked', accessorKey: 'lastCheckedDate',
-      cell: ({ row }) => row.original.lastCheckedDate
-        ? <span className="tabular">{row.original.lastCheckedDate}</span>
+      id: 'enabled', header: 'Enabled', accessorFn: (r: DomainMonitorRecord) => (r.enabled ? 'Enabled' : 'Disabled'),
+      cell: ({ row }) => {
+        const d = row.original;
+        return (
+          <div onClick={(e) => e.stopPropagation()}>
+            <NativeSelect
+              aria-label={`Enabled state of ${d.domainName}`}
+              className="h-8 w-auto text-[13px]"
+              value={d.enabled ? 'Enabled' : 'Disabled'}
+              disabled={!can('edit:resources')}
+              onChange={(e) => update.mutate({ id: d.id, enabled: e.target.value === 'Enabled' })}
+            >
+              <option value="Enabled">Enabled</option>
+              <option value="Disabled">Disabled</option>
+            </NativeSelect>
+          </div>
+        );
+      },
+    },
+    {
+      id: 'dateEnabled', header: 'Date Enabled', accessorKey: 'enabledDate',
+      cell: ({ row }) => row.original.enabledDate
+        ? <span className="tabular">{formatDate(row.original.enabledDate)}</span>
         : <span className="text-muted-foreground">Never</span>,
     },
+    ...(domainType === 'Invite' ? [{
+      id: 'nextRotation', header: 'Next Rotation Date', enableSorting: false,
+      cell: ({ row }: { row: { original: DomainMonitorRecord } }) => {
+        const due = nextRotationByDomainId.get(row.original.id);
+        return due ? <span className="tabular">{formatDate(due)}</span> : <span className="text-muted-foreground">Not scheduled</span>;
+      },
+    } satisfies ColumnDef<DomainMonitorRecord, unknown>] : []),
     {
       id: 'checkedBy', header: 'Checked By', enableSorting: false,
       cell: ({ row }) => lookups.personName(row.original.lastCheckedById),
@@ -140,10 +202,6 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         }
         return (
           <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-            <Button size="icon-sm" variant="ghost" aria-label={`Check ${d.domainName}`} disabled={!can('record:domain-checks')}
-              onClick={() => setCheckTarget({ kind: 'single', id: d.id, name: d.domainName })} title="Record accessibility check">
-              <History />
-            </Button>
             <Button size="icon-sm" variant="ghost" aria-label={`Edit ${d.domainName}`} disabled={!can('edit:resources')} onClick={() => openEdit(d)}>
               <Pencil />
             </Button>
@@ -154,7 +212,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         );
       },
     },
-  ], [domainType, lookups, can, selectMode, selectedIds, allFilteredSelected, filtered]);
+  ], [domainType, lookups, can, selectMode, selectedIds, allFilteredSelected, filtered, check, update, nextRotationByDomainId]);
 
   if (error) return <ErrorState message={error.message} onRetry={() => refetch()} />;
 

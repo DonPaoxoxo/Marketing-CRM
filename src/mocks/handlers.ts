@@ -794,6 +794,8 @@ export const handlers = [
       domainType,
       domainName,
       activationStatus: domainType === 'Invite' ? 'Standby' : null,
+      enabled: true,
+      enabledDate: today(),
       lastAccessibilityStatus: 'Not Checked',
       lastCheckedDate: null,
       lastCheckedById: null,
@@ -832,6 +834,8 @@ export const handlers = [
         domainType,
         domainName,
         activationStatus: domainType === 'Invite' ? 'Standby' : null,
+        enabled: true,
+        enabledDate: today(),
         lastAccessibilityStatus: 'Not Checked',
         lastCheckedDate: null,
         lastCheckedById: null,
@@ -864,6 +868,9 @@ export const handlers = [
 
     if (body.activationStatus === 'Active' || body.activationStatus === 'Standby') {
       return bad('Active and Standby are set by a rotation, not a plain edit.', 400, { field: 'activationStatus' });
+    }
+    if (body.enabled === true && !rec.enabled) {
+      body.enabledDate = today();
     }
     if (body.domainName !== undefined) {
       body.domainName = normalizeDomain(body.domainName);

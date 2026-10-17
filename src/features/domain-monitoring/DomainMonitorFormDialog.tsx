@@ -41,7 +41,10 @@ export function DomainMonitorFormDialog({
   React.useEffect(() => { if (open) reset(defaults); }, [open, defaults, reset]);
 
   const typed = normalizeDomain(watch('domainName'));
-  const duplicate = (data?.domainMonitors ?? []).find((d) => d.id !== monitor?.id && !d.archived && d.domainName === typed && typed.length > 2);
+  const typedType = watch('domainType');
+  // Scoped to this category — the same domain may already exist as the other
+  // category (Free Cash vs Invite) without conflicting.
+  const duplicate = (data?.domainMonitors ?? []).find((d) => d.id !== monitor?.id && !d.archived && d.domainName === typed && d.domainType === typedType && typed.length > 2);
 
   const onSubmit = handleSubmit(async (values) => {
     const payload = { ...values, domainName: normalizeDomain(values.domainName) };
@@ -77,7 +80,7 @@ export function DomainMonitorFormDialog({
             label="Domain URL"
             htmlFor="dm-name"
             required
-            error={errors.domainName?.message ?? (duplicate ? `${typed} already exists in the register (${duplicate.id}).` : undefined)}
+            error={errors.domainName?.message ?? (duplicate ? `${typed} is already a ${typedType} Domain (${duplicate.id}).` : undefined)}
             hint={!duplicate && typed && typed !== watch('domainName').trim() ? `Will be saved as ${typed}` : 'Scheme and www. are stripped.'}
           >
             <Input {...register('domainName')} placeholder="example.com" autoComplete="off" spellCheck={false} />

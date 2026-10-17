@@ -173,6 +173,23 @@ describe('Domain Monitoring & Rotation dashboard', () => {
     expect(screen.getByRole('button', { name: /^Select$/ })).toBeTruthy();
   });
 
+  it('allows the same domain name once per category — Free Cash and Invite do not conflict', async () => {
+    mount();
+    await screen.findByText('freecash-alpha.com'); // already a Free Cash Domain
+
+    clickTab('Invite Domains');
+    await screen.findByText('invite-alpha.com');
+    fireEvent.click(screen.getByRole('button', { name: /Add domain/ }));
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText(/Category/), { target: { value: 'Invite' } });
+    fireEvent.change(within(dialog).getByLabelText(/Domain URL/), { target: { value: 'freecash-alpha.com' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Add domain/ }));
+
+    await waitFor(() => expect(db.domainMonitors.filter((d) => d.domainName === 'freecash-alpha.com')).toHaveLength(2));
+    const both = db.domainMonitors.filter((d) => d.domainName === 'freecash-alpha.com');
+    expect(both.map((d) => d.domainType).sort()).toEqual(['Free Cash', 'Invite']);
+  });
+
   it('shows the Rotation Management empty state when no groups exist yet', async () => {
     mount();
     await screen.findByText('freecash-alpha.com');

@@ -786,8 +786,8 @@ export const handlers = [
     if (domainType !== 'Free Cash' && domainType !== 'Invite') return bad('Choose Free Cash or Invite Domain.', 400, { field: 'domainType' });
     const domainName = normalizeDomain(body.domainName ?? '');
     if (!domainName) return bad('A domain URL is required.', 400, { field: 'domainName' });
-    if (db.domainMonitors.some((d) => d.domainName === domainName)) {
-      return bad(`${domainName} is already in the register.`, 409, { field: 'domainName' });
+    if (db.domainMonitors.some((d) => d.domainName === domainName && d.domainType === domainType)) {
+      return bad(`${domainName} is already a ${domainType} Domain.`, 409, { field: 'domainName' });
     }
     const rec: DomainMonitorRecord = {
       id: nextId('DMN', db.domainMonitors),
@@ -824,7 +824,7 @@ export const handlers = [
     if (!lines.length) return bad('No domains were submitted.', 400);
     if (lines.length > 5000) return bad('A bulk add is limited to 5,000 domains. Split the list and run it again.', 400);
     const notes = sanitizeText(body.notes, 600);
-    const existing = new Set(db.domainMonitors.map((d) => d.domainName));
+    const existing = new Set(db.domainMonitors.filter((d) => d.domainType === domainType).map((d) => d.domainName));
     let created = 0;
     const problems: { line: number; reason: string }[] = [];
     for (const { line, domainName, problem } of validateDomainLines(lines, existing)) {
@@ -875,8 +875,9 @@ export const handlers = [
     if (body.domainName !== undefined) {
       body.domainName = normalizeDomain(body.domainName);
       if (!body.domainName) return bad('A domain URL is required.', 400, { field: 'domainName' });
-      if (db.domainMonitors.some((d) => d.id !== rec.id && d.domainName === body.domainName)) {
-        return bad(`${body.domainName} is already in the register.`, 409, { field: 'domainName' });
+      const effectiveType = body.domainType ?? rec.domainType;
+      if (db.domainMonitors.some((d) => d.id !== rec.id && d.domainName === body.domainName && d.domainType === effectiveType)) {
+        return bad(`${body.domainName} is already a ${effectiveType} Domain.`, 409, { field: 'domainName' });
       }
     }
     const restoring = body.archived === false && wasArchived;

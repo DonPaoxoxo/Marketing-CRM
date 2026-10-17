@@ -29,7 +29,12 @@ export function DomainBulkAddDialog({
     if (open) { setStage({ kind: 'paste' }); setDomainType(initialType); setText(''); setNotes(''); }
   }, [open, initialType]);
 
-  const existing = React.useMemo(() => new Set((data?.domainMonitors ?? []).map((d) => d.domainName)), [data]);
+  // Scoped to the chosen category — the same domain may already exist as the
+  // other category without conflicting (uniqueness is per domain type).
+  const existing = React.useMemo(
+    () => new Set((data?.domainMonitors ?? []).filter((d) => d.domainType === domainType).map((d) => d.domainName)),
+    [data, domainType],
+  );
   const lines = React.useMemo(() => splitDomainLines(text), [text]);
   const preview = React.useMemo(() => validateDomainLines(lines, existing), [lines, existing]);
   const validCount = preview.filter((p) => p.domainName).length;

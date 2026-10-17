@@ -24,11 +24,12 @@ export const domainMonitorsRouter = Router();
 
 type MonitorBody = Partial<DomainMonitorRecord> & { reason?: string };
 
-/** Unique across the whole register, archived rows included — a name the team
- *  retired is still the same name if it comes back. Same rule domains.ts uses. */
-async function nameTaken(domainName: string, exceptId?: string): Promise<string | null> {
-  const sql = `SELECT id FROM domain_monitors WHERE domain_name = ? ${exceptId ? 'AND id <> ?' : ''} LIMIT 1`;
-  const row = await queryOne<RowDataPacket>(sql, exceptId ? [domainName, exceptId] : [domainName]);
+/** Unique per domain_type, archived rows included — a name the team retired
+ *  is still the same name if it comes back. Free Cash and Invite are two
+ *  different uses of a domain, so the same name may exist once in each. */
+async function nameTaken(domainName: string, domainType: string, exceptId?: string): Promise<string | null> {
+  const sql = `SELECT id FROM domain_monitors WHERE domain_name = ? AND domain_type = ? ${exceptId ? 'AND id <> ?' : ''} LIMIT 1`;
+  const row = await queryOne<RowDataPacket>(sql, exceptId ? [domainName, domainType, exceptId] : [domainName, domainType]);
   return row ? String(row.id) : null;
 }
 
@@ -41,8 +42,8 @@ domainMonitorsRouter.post('/', requirePermission('edit:resources'), asyncHandler
   const domainName = normalizeDomain(body.domainName ?? '');
   if (!domainName) throw badRequest('A domain URL is required.', { field: 'domainName' });
 
-  const taken = await nameTaken(domainName);
-  if (taken) throw conflict(`${domainName} is already in the register.`, { field: 'domainName', conflictId: taken });
+  const taken = await nameTaken(domainName, domainType);
+  if (taken) throw conflict(`${domainName} is already a ${domainType} Domain.`, { field: 'domainName', conflictId: taken });
 
   const actor = actorOf(req);
   const record = await tx(async (conn) => {
@@ -87,8 +88,9 @@ domainMonitorsRouter.patch('/:id', requirePermission('edit:resources'), asyncHan
   if (body.domainName !== undefined) {
     body.domainName = normalizeDomain(body.domainName);
     if (!body.domainName) throw badRequest('A domain URL is required.', { field: 'domainName' });
-    const taken = await nameTaken(body.domainName, id);
-    if (taken) throw conflict(`${body.domainName} is already in the register.`, { field: 'domainName', conflictId: taken });
+    const effectiveType = body.domainType ?? before.domainType;
+    const taken = await nameTaken(body.domainName, effectiveType, id);
+    if (taken) throw conflict(`${body.domainName} is already a ${effectiveType} Domain.`, { field: 'domainName', conflictId: taken });
   }
 
   const { reason, ...rest } = body;
@@ -152,7 +154,9 @@ domainMonitorsRouter.post('/bulk', requirePermission('import:records'), asyncHan
   const actor = actorOf(req);
 
   const result = await tx(async (conn: PoolConnection) => {
-    const existingRows = await query<RowDataPacket>('SELECT domain_name FROM domain_monitors', [], conn);
+    // Scoped to this domainType — the same name may already exist as the
+    // other category without conflicting (uniqueness is per domain_type).
+    const existingRows = await query<RowDataPacket>('SELECT domain_name FROM domain_monitors WHERE domain_type = ?', [domainType], conn);
     const existing = new Set(existingRows.map((r) => String(r.domain_name)));
 
     let created = 0;

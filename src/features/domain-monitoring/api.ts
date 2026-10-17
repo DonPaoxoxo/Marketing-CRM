@@ -78,6 +78,32 @@ export function useBulkDeleteDomainMonitors() {
   });
 }
 
+/** Sets the same Next Rotation Date on many domains at once. No server batch
+ *  endpoint, so this fans out one PATCH per id, same as useBulkDeleteDomainMonitors. */
+export function useBulkSetNextRotationDate() {
+  const qc = useQueryClient();
+  const actorQuery = useActorQuery();
+  return useMutation({
+    mutationFn: async ({ ids, nextRotationDate }: { ids: string[]; nextRotationDate: string | null }) => {
+      const results = await Promise.allSettled(
+        ids.map((id) => call<DomainMonitorRecord>(`/${id}`, actorQuery, { method: 'PATCH', body: JSON.stringify({ nextRotationDate }) })),
+      );
+      return { total: ids.length, failed: results.filter((r) => r.status === 'rejected').length };
+    },
+    onSuccess: ({ total, failed }) => {
+      qc.invalidateQueries({ queryKey: BOOTSTRAP_KEY });
+      if (failed > 0) {
+        toast.error(`${total - failed} of ${total} domain${total === 1 ? '' : 's'} updated — ${failed} failed.`, {
+          description: 'Check your connection and try again for those.',
+        });
+      } else {
+        toast.success(`Next rotation date set for ${total} domain${total === 1 ? '' : 's'}`);
+      }
+    },
+    onError: (e: ApiError) => toast.error(e.message),
+  });
+}
+
 /* ── Bulk add (paste, one domain per line) ───────────────────────── */
 
 export interface BulkAddResult { created: number; skipped: number; problems: { line: number; reason: string }[] }

@@ -1,6 +1,6 @@
 import * as React from 'react';
 import type { ColumnDef } from '@tanstack/react-table';
-import { ListChecks, Pencil, Trash2, Upload, X } from 'lucide-react';
+import { CalendarClock, ListChecks, Pencil, Trash2, Upload, X } from 'lucide-react';
 import { Archive, ArchiveRestore, History } from 'lucide-react';
 import { ErrorState, PageHeader, SafeExternalLink, SectionCard } from '@/components/common/bits';
 import { DataTable } from '@/components/common/DataTable';
@@ -19,6 +19,7 @@ import { accessibilitySelectClass, dailyCheckBucket } from './badges';
 import { AccessibilityCheckDialog, type CheckTarget } from './AccessibilityCheckDialog';
 import { DomainMonitorFormDialog } from './DomainMonitorFormDialog';
 import { DomainBulkAddDialog } from './DomainBulkAddDialog';
+import { BulkSetRotationDateDialog } from './BulkSetRotationDateDialog';
 import { domainMonitorColumns } from './domainMonitoringExport';
 import { useBulkDeleteDomainMonitors, useRecordAccessibilityCheck, useUpdateDomainMonitor } from './api';
 
@@ -45,6 +46,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
   const [restoring, setRestoring] = React.useState<DomainMonitorRecord | undefined>();
   const [checkTarget, setCheckTarget] = React.useState<CheckTarget | undefined>();
   const [deleteOpen, setDeleteOpen] = React.useState(false);
+  const [rotationDateOpen, setRotationDateOpen] = React.useState(false);
   const [selectMode, setSelectMode] = React.useState(false);
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
 
@@ -224,12 +226,17 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
         description={description}
         actions={
           <>
-            {(can('record:domain-checks') || mayDelete) && all.length > 0 && (
+            {(can('record:domain-checks') || can('edit:resources') || mayDelete) && all.length > 0 && (
               selectMode ? (
                 <>
                   {can('record:domain-checks') && (
                     <Button size="sm" disabled={selectedIds.size === 0} onClick={() => setCheckTarget({ kind: 'bulk', ids: [...selectedIds] })}>
                       <History /> Check selected ({selectedIds.size})
+                    </Button>
+                  )}
+                  {can('edit:resources') && (
+                    <Button size="sm" variant="outline" disabled={selectedIds.size === 0} onClick={() => setRotationDateOpen(true)}>
+                      <CalendarClock /> Set rotation date ({selectedIds.size})
                     </Button>
                   )}
                   {mayDelete && (
@@ -293,6 +300,7 @@ export function DomainMonitorTable({ domainType, title, description }: { domainT
       <DomainMonitorFormDialog open={formOpen} onOpenChange={(v) => { setFormOpen(v); if (!v) setEditing(undefined); }} monitor={editing} />
       <DomainBulkAddDialog open={bulkOpen} onOpenChange={setBulkOpen} domainType={domainType} />
       <AccessibilityCheckDialog open={Boolean(checkTarget)} onOpenChange={(v) => { if (!v) { setCheckTarget(undefined); exitSelectMode(); } }} target={checkTarget} />
+      <BulkSetRotationDateDialog open={rotationDateOpen} onOpenChange={(v) => { setRotationDateOpen(v); if (!v) exitSelectMode(); }} ids={[...selectedIds]} />
 
       <ConfirmWithReason
         open={Boolean(archiving)}

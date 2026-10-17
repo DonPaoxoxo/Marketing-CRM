@@ -180,6 +180,24 @@ describe('Domain Monitoring dashboard', () => {
     await waitFor(() => expect(db.domainMonitors.find((d) => d.domainName === 'invite-alpha.com')?.nextRotationDate).toBe('2026-11-01'));
   });
 
+  it('sets the same next rotation date on several selected domains at once', async () => {
+    mount();
+    await screen.findByText('freecash-alpha.com');
+    fireEvent.click(screen.getByRole('button', { name: /^Select$/ }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select freecash-bravo.com' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Select freecash-charlie.com' }));
+    fireEvent.click(screen.getByRole('button', { name: /Set rotation date \(2\)/ }));
+
+    const dialog = await screen.findByRole('dialog');
+    fireEvent.change(within(dialog).getByLabelText('Next rotation date'), { target: { value: '2026-12-01' } });
+    fireEvent.click(within(dialog).getByRole('button', { name: /Set date/ }));
+
+    await waitFor(() => {
+      expect(db.domainMonitors.find((d) => d.domainName === 'freecash-bravo.com')?.nextRotationDate).toBe('2026-12-01');
+      expect(db.domainMonitors.find((d) => d.domainName === 'freecash-charlie.com')?.nextRotationDate).toBe('2026-12-01');
+    });
+  });
+
   it('lets the System Administrator select domains and permanently delete them', async () => {
     mount(); // default preview role is System Administrator
     await screen.findByText('freecash-alpha.com');

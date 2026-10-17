@@ -79,6 +79,12 @@ const DESCRIPTIONS: Record<Permission, string> = {
   'access:credential-refs': 'open Credential Refs',
   'access:roles-audit': 'open Roles & Audit',
   'access:data-leads': 'open Data Leads',
+  'access:domain-monitoring': 'open Domain Monitoring & Rotation',
+  'record:domain-checks': 'log daily domain accessibility checks',
+  'manage:rotation-batches': 'manage rotation batches',
+  'execute:full-rotation': 'execute a full batch rotation',
+  'execute:partial-rotation': 'execute a partial rotation',
+  'override:rotation-schedule': 'override a rotation schedule',
 };
 
 function describe(permission: Permission): string {

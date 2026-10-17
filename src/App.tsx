@@ -31,6 +31,7 @@ import AdsMonitoringPage from '@/routes/AdsMonitoring';
 import AdsCampaignDetailPage from '@/routes/AdsCampaignDetail';
 import SharedSpielPage from '@/routes/SharedSpiel';
 import DataLeadsPage from '@/routes/DataLeads';
+import DomainMonitoringPage from '@/routes/DomainMonitoring';
 import ImportPage from '@/routes/Import';
 import AuditPage from '@/routes/Audit';
 import NotFoundPage from '@/routes/NotFound';
@@ -99,6 +100,7 @@ export function App() {
                   <Route path="brands" element={<BrandsPage />} />
                   <Route path="brands/:id" element={<BrandDetailPage />} />
                   <Route path="data-leads" element={<RequirePermission permission="access:data-leads"><DataLeadsPage /></RequirePermission>} />
+                  <Route path="domain-monitoring" element={<RequirePermission permission="access:domain-monitoring"><DomainMonitoringPage /></RequirePermission>} />
                   <Route path="reports" element={<ReportsPage />} />
                   <Route path="team-reports" element={<TeamReportsPage />} />
                   <Route path="shared-spiel" element={<SharedSpielPage />} />

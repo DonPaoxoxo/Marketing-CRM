@@ -30,6 +30,7 @@ import ReportsPage from './Reports';
 import ImportPage from './Import';
 import AuditPage from './Audit';
 import DataLeadsPage from './DataLeads';
+import DomainMonitoringPage from './DomainMonitoring';
 
 const server = setupServer(...handlers);
 beforeAll(() => {
@@ -207,6 +208,12 @@ describe('every route renders against the mock API', () => {
     await heading(/^Data Leads$/);
     expect(await screen.findByText(/^\d+ records?$/)).toBeTruthy();
     expect(screen.getByText('DK Online Tech')).toBeTruthy();
+  });
+
+  it('Domain Monitoring lists the seeded Free Cash Domains by default', async () => {
+    mount(<DomainMonitoringPage />);
+    await heading(/^Domain Monitoring & Rotation$/);
+    expect(await screen.findByText('freecash-alpha.com')).toBeTruthy();
   });
 
   it('Roles and audit renders the permission matrix', async () => {

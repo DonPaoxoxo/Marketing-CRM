@@ -18,6 +18,7 @@ import { socialAccountsRouter } from './routes/social-accounts';
 import { domainsRouter } from './routes/domains';
 import { pakistanCompetitorsRouter } from './routes/pakistan-competitors';
 import { dataLeadsRouter } from './routes/data-leads';
+import { domainMonitoringRouter } from './routes/domain-monitoring';
 import { socialMediaPostsRouter } from './routes/social-media-posts';
 import { assignmentsRouter } from './routes/assignments';
 import { credentialsRouter } from './routes/credentials';
@@ -133,6 +134,7 @@ export function createApp(options: AppOptions = {}): Express {
   app.use('/api/domains', domainsRouter);
   app.use('/api/pakistan-competitors', pakistanCompetitorsRouter);
   app.use('/api/data-leads', dataLeadsRouter);
+  app.use('/api/domain-monitoring', domainMonitoringRouter);
   app.use('/api/social-media-posts', socialMediaPostsRouter);
   app.use('/api/assignments', assignmentsRouter);
   app.use('/api/credentials', credentialsRouter);

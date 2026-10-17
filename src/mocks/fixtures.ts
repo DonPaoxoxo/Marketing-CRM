@@ -10,8 +10,10 @@
  *  credentials. Vault references point nowhere. */
 
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DataLeadRecord,
-  DomainRecord, FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef,
+  DataLeadRecord, DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project,
+  RotationBatchMember, RotationBatchRecord, RotationEventDomainChange, RotationEventRecord, RotationGroupRecord, Sim,
+  SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 import { addDays, toISODate } from '@/lib/utils';
 import { PAYMENT_TERM_BY_TYPE } from '@/lib/agents';
@@ -732,3 +734,62 @@ export const contentPosts: ContentPost[] = Array.from({ length: 84 }, (_, i) => 
     updatedAt: stamp(-int(0, 3)),
   } satisfies ContentPost;
 });
+
+/* ── Domain Monitoring & Rotation ───────────────────────────────────
+ *  A manual-operation-only monitoring layer, entirely separate from the
+ *  Domains register above. `lastCheckedDate` is deliberately anchored to the
+ *  real wall-clock today (not this file's historical NOW), because the
+ *  Pending/Overdue bucketing it drives (see dailyCheckBucket) is itself
+ *  computed against real "today" — anchoring it to NOW the way every other
+ *  fixture here does would make Overdue/Pending assignments silently drift
+ *  as real time passes, the same class of flake domainExpiryBucket's test
+ *  already hits (see src/lib/rules.test.ts). */
+const realToday = (offsetDays: number) => toISODate(addDays(new Date(), offsetDays));
+
+const DOMAIN_MONITOR_SEED: {
+  type: DomainMonitorRecord['domainType']; name: string; accessibility: DomainMonitorRecord['lastAccessibilityStatus'];
+  activation?: DomainMonitorRecord['activationStatus']; checkedOffset: number | null; checkedBy?: string; notes?: string; archived?: boolean;
+}[] = [
+  { type: 'Free Cash', name: 'freecash-alpha.com', accessibility: 'Accessible', checkedOffset: 0, checkedBy: 'TM-04' },
+  { type: 'Free Cash', name: 'freecash-bravo.com', accessibility: 'Inaccessible', checkedOffset: -1, checkedBy: 'TM-05', notes: 'SSL certificate expired.' },
+  { type: 'Free Cash', name: 'freecash-charlie.com', accessibility: 'Intermittent', checkedOffset: -3, checkedBy: 'TM-04' },
+  { type: 'Free Cash', name: 'freecash-delta.com', accessibility: 'Not Checked', checkedOffset: null },
+  { type: 'Free Cash', name: 'freecash-echo.com', accessibility: 'Accessible', checkedOffset: -2, checkedBy: 'TM-05', archived: true },
+  { type: 'Invite', name: 'invite-alpha.com', accessibility: 'Accessible', activation: 'Active', checkedOffset: 0, checkedBy: 'TM-02' },
+  { type: 'Invite', name: 'invite-bravo.com', accessibility: 'Accessible', activation: 'Active', checkedOffset: 0, checkedBy: 'TM-02' },
+  { type: 'Invite', name: 'invite-charlie.com', accessibility: 'Accessible', activation: 'Standby', checkedOffset: -1, checkedBy: 'TM-03' },
+  { type: 'Invite', name: 'invite-delta.com', accessibility: 'Inaccessible', activation: 'Standby', checkedOffset: -4, checkedBy: 'TM-03', notes: 'Registrar parking page — needs a fresh purchase.' },
+  { type: 'Invite', name: 'invite-echo.com', accessibility: 'Not Checked', activation: 'Disabled', checkedOffset: null },
+];
+
+export const domainMonitors: DomainMonitorRecord[] = DOMAIN_MONITOR_SEED.map((d, i) => ({
+  id: `DMN-${pad(i + 1)}`,
+  domainType: d.type,
+  domainName: d.name,
+  activationStatus: d.type === 'Invite' ? (d.activation ?? 'Standby') : null,
+  lastAccessibilityStatus: d.accessibility,
+  lastCheckedDate: d.checkedOffset === null ? null : realToday(d.checkedOffset),
+  lastCheckedById: d.checkedBy ?? null,
+  notes: d.notes ?? '',
+  archived: d.archived ?? false,
+  createdAt: stamp(-int(10, 60)),
+  updatedAt: stamp(-int(0, 5)),
+}));
+
+export const domainCheckLogs: DomainCheckLogEntry[] = domainMonitors
+  .filter((d) => d.lastCheckedDate)
+  .map((d, i) => ({
+    id: `DCL-${pad(i + 1, 6)}`,
+    domainMonitorId: d.id,
+    checkDate: d.lastCheckedDate!,
+    accessibilityStatus: d.lastAccessibilityStatus,
+    checkedById: d.lastCheckedById,
+    notes: d.notes,
+    createdAt: d.updatedAt,
+    updatedAt: d.updatedAt,
+  }));
+export const rotationGroups: RotationGroupRecord[] = [];
+export const rotationBatches: RotationBatchRecord[] = [];
+export const rotationBatchMembers: RotationBatchMember[] = [];
+export const rotationEvents: RotationEventRecord[] = [];
+export const rotationEventDomainChanges: RotationEventDomainChange[] = [];

@@ -10,12 +10,12 @@
 import type { PoolConnection, RowDataPacket } from 'mysql2/promise';
 import { execute, query, queryOne } from '../db/pool';
 import {
-  mapAccount, mapAgent, mapAssignment, mapCompetitor, mapContentPost, mapCredential, mapDataLead, mapDomain, mapSim,
-  mapSnapshot, mapSocialPost,
+  mapAccount, mapAgent, mapAssignment, mapCompetitor, mapContentPost, mapCredential, mapDataLead, mapDomain,
+  mapDomainMonitor, mapRotationBatch, mapRotationGroup, mapSim, mapSnapshot, mapSocialPost,
 } from './mappers';
 import type {
-  Agent, Assignment, CompetitorRecord, ContentPost, CredentialRef, DataLeadRecord, DomainRecord, FollowerSnapshot, Sim,
-  SocialAccount, SocialMediaPost,
+  Agent, Assignment, CompetitorRecord, ContentPost, CredentialRef, DataLeadRecord, DomainMonitorRecord, DomainRecord,
+  FollowerSnapshot, RotationBatchRecord, RotationGroupRecord, Sim, SocialAccount, SocialMediaPost,
 } from '../../src/lib/types';
 
 export * from './statements';
@@ -141,4 +141,19 @@ export async function readSnapshot(id: string, conn?: PoolConnection): Promise<F
 export async function readDataLead(id: string, conn?: PoolConnection): Promise<DataLeadRecord | null> {
   const row = await one(id, 'data_leads', conn);
   return row ? mapDataLead(row) : null;
+}
+
+export async function readDomainMonitor(id: string, conn?: PoolConnection): Promise<DomainMonitorRecord | null> {
+  const row = await one(id, 'domain_monitors', conn);
+  return row ? mapDomainMonitor(row) : null;
+}
+
+export async function readRotationGroup(id: string, conn?: PoolConnection): Promise<RotationGroupRecord | null> {
+  const row = await one(id, 'rotation_groups', conn);
+  return row ? mapRotationGroup(row) : null;
+}
+
+export async function readRotationBatch(id: string, conn?: PoolConnection): Promise<RotationBatchRecord | null> {
+  const row = await one(id, 'rotation_batches', conn);
+  return row ? mapRotationBatch(row) : null;
 }

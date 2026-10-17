@@ -1,5 +1,5 @@
 import {
-  Building2, ClipboardList, Contact, FileBarChart, Flag, Globe, KeyRound, LayoutDashboard,
+  Activity, Building2, ClipboardList, Contact, FileBarChart, Flag, Globe, KeyRound, LayoutDashboard,
   Megaphone, MessagesSquare, NotebookPen, PackageSearch, Send, Share2, ShieldCheck, Smartphone, TrendingUp, Upload, Users,
 } from 'lucide-react';
 import type { Permission } from '@/lib/types';
@@ -42,6 +42,7 @@ export const NAV: NavGroup[] = [
       { to: '/social-media-posting', label: 'Social Media Posting', icon: Send, description: 'Daily posting log and activity overview' },
       { to: '/pakistan-competitors', label: 'Pakistan Competitor', icon: Flag, description: 'Competitor presence and contact points, Pakistan market' },
       { to: '/data-leads', label: 'Data Leads', icon: Contact, description: 'Scraped creator leads for outreach — Facebook, Instagram, Twitter/X, TikTok, YouTube', permission: 'access:data-leads' },
+      { to: '/domain-monitoring', label: 'Domain Monitoring & Rotation', icon: Activity, description: 'Daily accessibility checks and 5-day rotation for Free Cash and Invite domains', permission: 'access:domain-monitoring' },
       { to: '/ads-monitoring', label: 'Ads Monitoring', icon: Megaphone, description: 'Ad campaigns, daily performance, creatives and trends' },
       { to: '/shared-spiel', label: 'Shared Spiel Library', icon: MessagesSquare, description: 'Approved communication scripts, references and the AI Assistant Learner' },
       { to: '/team-reports', label: 'Team Reports', icon: NotebookPen, description: 'Daily, weekly and monthly work reports' },

@@ -7,9 +7,10 @@ import { db, diffRecords, nextId, recordAudit } from './db';
 import { ROLES } from '@/lib/types';
 import {
   SOCIAL_POST_PLATFORM, SOCIAL_POST_PURPOSE,
-  DATA_LEAD_ASSIGNEE,
+  DATA_LEAD_ASSIGNEE, DOMAIN_ACCESSIBILITY_STATUS,
   type AgentProof, type Agent, type Assignment, type AuditEntry, type CompetitorRecord, type ContentPost,
-  type CredentialRef, type DataLeadRecord, type DomainRecord, type FollowerSnapshot, type RoleName, type Sim,
+  type CredentialRef, type DataLeadRecord, type DomainAccessibilityStatus, type DomainMonitorRecord,
+  type DomainRecord, type FollowerSnapshot, type RoleName, type RotationBatchRecord, type RotationEventRecord, type RotationGroupRecord, type Sim,
   type SocialAccount, type SocialMediaPost, type SocialPostScreenshot, type TeamMember,
 } from '@/lib/types';
 import { checkAssignmentConflict } from '@/lib/rules';
@@ -25,12 +26,14 @@ import {
 } from '@/lib/domain-import';
 import { checkSimExtras, simRawFromRecord, takenBySims, validateSimRow, noneTaken, addTaken } from '@/lib/sim-import';
 import { leadChannelKey, validateLeadRow, type LeadImportKey } from '@/lib/lead-import';
+import { validateDomainLines } from '@/lib/domain-monitor-import';
 import { emailKey, telegramKey, TELEGRAM_USERNAME_PATTERN } from '@/lib/identity';
 import { paymentTermFitsType } from '@/lib/agents';
 import { normalizeDomain, normalizePhone } from '@/lib/utils';
 import {
   ACCOUNT_FIELDS, AGENT_FIELDS, ASSIGNMENT_FIELDS, COMPETITOR_FIELDS, CONTENT_POST_FIELDS, CREDENTIAL_FIELDS,
-  DATA_LEAD_FIELDS, DOMAIN_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, SOCIAL_POST_FIELDS, sanitizeFields, sanitizeText, sanitizeUrl,
+  DATA_LEAD_FIELDS, DOMAIN_FIELDS, DOMAIN_MONITOR_FIELDS, ROTATION_FIELDS, SIM_FIELDS, SNAPSHOT_FIELDS, SOCIAL_POST_FIELDS,
+  sanitizeFields, sanitizeText, sanitizeUrl,
 } from '@/lib/sanitize';
 
 /** Absolute base so the same handlers match in the browser (against the page's
@@ -99,6 +102,29 @@ function recoveryProblem(body: Partial<SocialAccount>, before?: SocialAccount) {
 }
 
 const now = () => new Date().toISOString();
+const today = () => now().slice(0, 10);
+
+/** Upserts one domain's check for today and updates the monitor's own
+ *  denormalised cache — mirrors writeCheck in server/routes/domain-monitoring/checks.ts. */
+function writeCheckLog(rec: DomainMonitorRecord, status: DomainAccessibilityStatus, notes: string, checkedById: string): void {
+  const checkDate = today();
+  const existing = db.domainCheckLogs.find((l) => l.domainMonitorId === rec.id && l.checkDate === checkDate);
+  if (existing) {
+    Object.assign(existing, { accessibilityStatus: status, checkedById, notes, updatedAt: now() });
+  } else {
+    db.domainCheckLogs.unshift({
+      id: nextId('DCL', db.domainCheckLogs, 6),
+      domainMonitorId: rec.id,
+      checkDate,
+      accessibilityStatus: status,
+      checkedById,
+      notes,
+      createdAt: now(),
+      updatedAt: now(),
+    });
+  }
+  Object.assign(rec, { lastAccessibilityStatus: status, lastCheckedDate: checkDate, lastCheckedById: checkedById, updatedAt: now() });
+}
 
 /** Created For, Email and Telegram username on a single SIM save, mirroring
  *  applySimExtras in server/routes/sims.ts. Returns a response to send, or null. */
@@ -203,6 +229,12 @@ export const handlers = [
       socialMediaPosts: db.socialMediaPosts,
       socialPostScreenshots: db.socialPostScreenshots,
       dataLeads: db.dataLeads,
+      domainMonitors: db.domainMonitors,
+      rotationGroups: db.rotationGroups,
+      rotationBatches: db.rotationBatches,
+      rotationBatchMembers: db.rotationBatchMembers,
+      rotationEvents: db.rotationEvents,
+      rotationEventDomainChanges: db.rotationEventDomainChanges,
       auditEntries: db.auditEntries,
     });
   }),
@@ -742,6 +774,494 @@ export const handlers = [
       });
     }
     return HttpResponse.json(rec);
+  }),
+
+  /* ── Domain Monitoring & Rotation (mirrors server/routes/domain-monitoring/) ── */
+  http.post(`${API}/domain-monitoring`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'edit:resources')) return bad(`Your role (${actor(request).role}) cannot edit resources.`, 403);
+    const body = sanitizeFields((await request.json()) as Partial<DomainMonitorRecord> & { reason?: string }, DOMAIN_MONITOR_FIELDS);
+    const domainType = body.domainType;
+    if (domainType !== 'Free Cash' && domainType !== 'Invite') return bad('Choose Free Cash or Invite Domain.', 400, { field: 'domainType' });
+    const domainName = normalizeDomain(body.domainName ?? '');
+    if (!domainName) return bad('A domain URL is required.', 400, { field: 'domainName' });
+    if (db.domainMonitors.some((d) => d.domainName === domainName)) {
+      return bad(`${domainName} is already in the register.`, 409, { field: 'domainName' });
+    }
+    const rec: DomainMonitorRecord = {
+      id: nextId('DMN', db.domainMonitors),
+      domainType,
+      domainName,
+      activationStatus: domainType === 'Invite' ? 'Standby' : null,
+      lastAccessibilityStatus: 'Not Checked',
+      lastCheckedDate: null,
+      lastCheckedById: null,
+      notes: body.notes ?? '',
+      archived: false,
+      createdAt: now(),
+      updatedAt: now(),
+    };
+    db.domainMonitors.unshift(rec);
+    recordAudit({
+      actor: actor(request), recordType: 'Domain Monitor', recordId: rec.id, recordLabel: rec.domainName,
+      action: 'create', reason: body.reason ?? `${domainType} Domain added`,
+      changes: [{ field: 'domainName', from: null, to: rec.domainName }, { field: 'domainType', from: null, to: rec.domainType }],
+    });
+    return HttpResponse.json(rec, { status: 201 });
+  }),
+
+  http.post(`${API}/domain-monitoring/bulk`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'import:records')) return bad(`Your role (${actor(request).role}) cannot import records.`, 403);
+    const body = (await request.json()) as { domainType?: unknown; lines?: unknown; notes?: unknown; reason?: unknown };
+    const domainType = body.domainType;
+    if (domainType !== 'Free Cash' && domainType !== 'Invite') return bad('Choose Free Cash or Invite Domain.', 400, { field: 'domainType' });
+    const lines = Array.isArray(body.lines) ? body.lines.map(String) : [];
+    if (!lines.length) return bad('No domains were submitted.', 400);
+    if (lines.length > 5000) return bad('A bulk add is limited to 5,000 domains. Split the list and run it again.', 400);
+    const notes = sanitizeText(body.notes, 600);
+    const existing = new Set(db.domainMonitors.map((d) => d.domainName));
+    let created = 0;
+    const problems: { line: number; reason: string }[] = [];
+    for (const { line, domainName, problem } of validateDomainLines(lines, existing)) {
+      if (!domainName) { problems.push({ line, reason: problem ?? 'Not a valid domain.' }); continue; }
+      const rec: DomainMonitorRecord = {
+        id: nextId('DMN', db.domainMonitors),
+        domainType,
+        domainName,
+        activationStatus: domainType === 'Invite' ? 'Standby' : null,
+        lastAccessibilityStatus: 'Not Checked',
+        lastCheckedDate: null,
+        lastCheckedById: null,
+        notes,
+        archived: false,
+        createdAt: now(),
+        updatedAt: now(),
+      };
+      db.domainMonitors.unshift(rec);
+      existing.add(domainName);
+      created++;
+    }
+    recordAudit({
+      actor: actor(request), recordType: 'Import', recordId: 'domain-monitoring', recordLabel: `${domainType} Domains bulk add`,
+      action: 'import',
+      reason: typeof body.reason === 'string' && body.reason.trim() ? body.reason : 'Bulk add committed',
+      changes: [{ field: 'rowsCreated', from: null, to: created }, { field: 'rowsSubmitted', from: null, to: lines.length }],
+    });
+    return HttpResponse.json({ created, skipped: lines.length - created, problems: problems.slice(0, 200) });
+  }),
+
+  http.patch(`${API}/domain-monitoring/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'edit:resources')) return bad(`Your role (${actor(request).role}) cannot edit resources.`, 403);
+    const rec = db.domainMonitors.find((d) => d.id === params.id);
+    if (!rec) return bad('Domain not found.', 404);
+    const wasArchived = rec.archived;
+    const body = sanitizeFields((await request.json()) as Partial<DomainMonitorRecord> & { reason?: string }, DOMAIN_MONITOR_FIELDS);
+
+    if (body.activationStatus === 'Active' || body.activationStatus === 'Standby') {
+      return bad('Active and Standby are set by a rotation, not a plain edit.', 400, { field: 'activationStatus' });
+    }
+    if (body.domainName !== undefined) {
+      body.domainName = normalizeDomain(body.domainName);
+      if (!body.domainName) return bad('A domain URL is required.', 400, { field: 'domainName' });
+      if (db.domainMonitors.some((d) => d.id !== rec.id && d.domainName === body.domainName)) {
+        return bad(`${body.domainName} is already in the register.`, 409, { field: 'domainName' });
+      }
+    }
+    const restoring = body.archived === false && wasArchived;
+    if ((body.archived === true && !wasArchived) || restoring) {
+      if (!may(request, 'archive:records')) return bad(`Your role (${actor(request).role}) cannot ${restoring ? 'restore' : 'archive'} records.`, 403);
+      if (!body.reason?.trim()) return bad(`${restoring ? 'Restoring' : 'Archiving'} needs a written reason.`, 400, { field: 'reason' });
+    }
+
+    const { reason, ...patch } = body;
+    const changes = diffRecords(rec as unknown as Record<string, unknown>, patch as Record<string, unknown>);
+    const statusChanged = changes.some((c) => c.field === 'activationStatus');
+    Object.assign(rec, patch, { updatedAt: now() });
+    if (changes.length) {
+      recordAudit({
+        actor: actor(request), recordType: 'Domain Monitor', recordId: rec.id, recordLabel: rec.domainName,
+        action: statusChanged ? 'status-change' : restoring ? 'restore' : patch.archived ? 'archive' : 'update',
+        reason: reason ?? 'Domain monitor updated',
+        changes,
+      });
+    }
+    return HttpResponse.json(rec);
+  }),
+
+  http.post(`${API}/domain-monitoring/:id/checks`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'record:domain-checks')) return bad(`Your role (${actor(request).role}) cannot log domain checks.`, 403);
+    const rec = db.domainMonitors.find((d) => d.id === params.id);
+    if (!rec) return bad('Domain not found.', 404);
+    const body = (await request.json()) as { accessibilityStatus?: unknown; notes?: unknown };
+    const status = body.accessibilityStatus;
+    if (!(DOMAIN_ACCESSIBILITY_STATUS as readonly unknown[]).includes(status)) {
+      return bad('Choose Accessible, Inaccessible, Intermittent or Not Checked.', 400, { field: 'accessibilityStatus' });
+    }
+    writeCheckLog(rec, status as DomainAccessibilityStatus, sanitizeText(body.notes, 600), actor(request).id);
+    return HttpResponse.json(rec);
+  }),
+
+  http.post(`${API}/domain-monitoring/bulk-checks`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'record:domain-checks')) return bad(`Your role (${actor(request).role}) cannot log domain checks.`, 403);
+    const body = (await request.json()) as { domainMonitorIds?: unknown; accessibilityStatus?: unknown; notes?: unknown };
+    const ids = Array.isArray(body.domainMonitorIds) ? body.domainMonitorIds.map(String) : [];
+    if (!ids.length) return bad('No domains were selected.', 400);
+    const status = body.accessibilityStatus;
+    if (!(DOMAIN_ACCESSIBILITY_STATUS as readonly unknown[]).includes(status)) {
+      return bad('Choose Accessible, Inaccessible, Intermittent or Not Checked.', 400, { field: 'accessibilityStatus' });
+    }
+    const notes = sanitizeText(body.notes, 600);
+    const who = actor(request);
+    let updated = 0;
+    const skipped: string[] = [];
+    for (const domainId of ids) {
+      const rec = db.domainMonitors.find((d) => d.id === domainId);
+      if (!rec) { skipped.push(domainId); continue; }
+      writeCheckLog(rec, status as DomainAccessibilityStatus, notes, who.id);
+      updated++;
+    }
+    return HttpResponse.json({ updated, skipped: skipped.length, problems: skipped.map((domainId) => ({ domainId, reason: 'Not found.' })) });
+  }),
+
+  http.get(`${API}/domain-monitoring/:id/checks`, ({ request, params }) => {
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    const rec = db.domainMonitors.find((d) => d.id === params.id);
+    if (!rec) return bad('Domain not found.', 404);
+    const url = new URL(request.url);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const rows = db.domainCheckLogs
+      .filter((l) => l.domainMonitorId === params.id)
+      .filter((l) => (!from || l.checkDate >= from) && (!to || l.checkDate <= to))
+      .sort((a, b) => (a.checkDate < b.checkDate ? 1 : -1));
+    return HttpResponse.json(rows);
+  }),
+
+  http.get(`${API}/domain-monitoring/checks`, ({ request }) => {
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    const url = new URL(request.url);
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+    const rows = db.domainCheckLogs
+      .filter((l) => (!from || l.checkDate >= from) && (!to || l.checkDate <= to))
+      .sort((a, b) => (a.checkDate < b.checkDate ? 1 : -1));
+    return HttpResponse.json(rows);
+  }),
+
+  /* ── Rotation groups & batches (configuration only; mirrors server/routes/domain-monitoring/batches.ts) ── */
+  http.post(`${API}/domain-monitoring/groups`, async ({ request }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'manage:rotation-batches')) return bad(`Your role (${actor(request).role}) cannot manage rotation batches.`, 403);
+    const body = sanitizeFields((await request.json()) as Partial<RotationGroupRecord> & { reason?: string }, ROTATION_FIELDS);
+    const name = body.name?.trim();
+    if (!name) return bad('A group name is required.', 400, { field: 'name' });
+    if (db.rotationGroups.some((g) => g.name === name)) return bad(`${name} is already a rotation group.`, 409, { field: 'name' });
+    const rec: RotationGroupRecord = {
+      id: nextId('RTG', db.rotationGroups), name, notes: body.notes ?? '',
+      rotationIntervalDays: body.rotationIntervalDays ?? 5, cycleStartedAt: null, nextRotationDueAt: null,
+      archived: false, createdAt: now(), updatedAt: now(),
+    };
+    db.rotationGroups.unshift(rec);
+    recordAudit({
+      actor: actor(request), recordType: 'Rotation Group', recordId: rec.id, recordLabel: name, action: 'create',
+      reason: body.reason ?? 'Rotation group created', changes: [{ field: 'name', from: null, to: name }],
+    });
+    return HttpResponse.json(rec, { status: 201 });
+  }),
+
+  http.patch(`${API}/domain-monitoring/groups/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'manage:rotation-batches')) return bad(`Your role (${actor(request).role}) cannot manage rotation batches.`, 403);
+    const rec = db.rotationGroups.find((g) => g.id === params.id);
+    if (!rec) return bad('Rotation group not found.', 404);
+    const body = sanitizeFields((await request.json()) as Partial<RotationGroupRecord> & { reason?: string }, ROTATION_FIELDS);
+    if (body.name !== undefined) {
+      body.name = body.name.trim();
+      if (!body.name) return bad('A group name is required.', 400, { field: 'name' });
+      if (db.rotationGroups.some((g) => g.id !== rec.id && g.name === body.name)) return bad(`${body.name} is already a rotation group.`, 409, { field: 'name' });
+    }
+    if (body.cycleStartedAt !== undefined || body.nextRotationDueAt !== undefined) {
+      return bad('The rotation schedule is set by a rotation or an override, not a plain edit.', 400, { field: 'nextRotationDueAt' });
+    }
+    const wasArchived = rec.archived;
+    const restoring = body.archived === false && wasArchived;
+    if ((body.archived === true && !wasArchived) || restoring) {
+      if (!may(request, 'archive:records')) return bad(`Your role (${actor(request).role}) cannot ${restoring ? 'restore' : 'archive'} records.`, 403);
+      if (!body.reason?.trim()) return bad(`${restoring ? 'Restoring' : 'Archiving'} needs a written reason.`, 400, { field: 'reason' });
+    }
+    const { reason, ...patch } = body;
+    const changes = diffRecords(rec as unknown as Record<string, unknown>, patch as Record<string, unknown>);
+    Object.assign(rec, patch, { updatedAt: now() });
+    if (changes.length) {
+      recordAudit({
+        actor: actor(request), recordType: 'Rotation Group', recordId: rec.id, recordLabel: rec.name,
+        action: restoring ? 'restore' : patch.archived ? 'archive' : 'update',
+        reason: reason ?? 'Rotation group updated', changes,
+      });
+    }
+    return HttpResponse.json(rec);
+  }),
+
+  http.post(`${API}/domain-monitoring/groups/:groupId/batches`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'manage:rotation-batches')) return bad(`Your role (${actor(request).role}) cannot manage rotation batches.`, 403);
+    const group = db.rotationGroups.find((g) => g.id === params.groupId);
+    if (!group) return bad('Rotation group not found.', 404);
+    const body = sanitizeFields((await request.json()) as Partial<RotationBatchRecord> & { reason?: string }, ROTATION_FIELDS);
+    const name = body.name?.trim();
+    if (!name) return bad('A batch name is required.', 400, { field: 'name' });
+    if (db.rotationBatches.some((b) => b.rotationGroupId === group.id && b.name === name)) return bad(`${name} already exists in this group.`, 409, { field: 'name' });
+    const rec: RotationBatchRecord = {
+      id: nextId('RTB', db.rotationBatches), rotationGroupId: group.id, name, status: 'Standby',
+      archived: false, createdAt: now(), updatedAt: now(),
+    };
+    db.rotationBatches.unshift(rec);
+    recordAudit({
+      actor: actor(request), recordType: 'Rotation Batch', recordId: rec.id, recordLabel: `${group.name} / ${name}`, action: 'create',
+      reason: body.reason ?? 'Rotation batch created', changes: [{ field: 'name', from: null, to: name }],
+    });
+    return HttpResponse.json(rec, { status: 201 });
+  }),
+
+  http.patch(`${API}/domain-monitoring/batches/:id`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'manage:rotation-batches')) return bad(`Your role (${actor(request).role}) cannot manage rotation batches.`, 403);
+    const rec = db.rotationBatches.find((b) => b.id === params.id);
+    if (!rec) return bad('Rotation batch not found.', 404);
+    const body = sanitizeFields((await request.json()) as Partial<RotationBatchRecord> & { reason?: string }, ROTATION_FIELDS);
+    if (body.name !== undefined) {
+      body.name = body.name.trim();
+      if (!body.name) return bad('A batch name is required.', 400, { field: 'name' });
+      if (db.rotationBatches.some((b) => b.id !== rec.id && b.rotationGroupId === rec.rotationGroupId && b.name === body.name)) {
+        return bad(`${body.name} already exists in this group.`, 409, { field: 'name' });
+      }
+    }
+    if (body.status !== undefined) return bad('A batch becomes Active or Standby through a rotation, not a plain edit.', 400, { field: 'status' });
+    if (body.archived === true && rec.status === 'Active') return bad('Rotate this batch out before archiving it.', 400, { field: 'archived' });
+    const wasArchived = rec.archived;
+    const restoring = body.archived === false && wasArchived;
+    if ((body.archived === true && !wasArchived) || restoring) {
+      if (!may(request, 'archive:records')) return bad(`Your role (${actor(request).role}) cannot ${restoring ? 'restore' : 'archive'} records.`, 403);
+      if (!body.reason?.trim()) return bad(`${restoring ? 'Restoring' : 'Archiving'} needs a written reason.`, 400, { field: 'reason' });
+    }
+    const { reason, ...patch } = body;
+    const changes = diffRecords(rec as unknown as Record<string, unknown>, patch as Record<string, unknown>);
+    Object.assign(rec, patch, { updatedAt: now() });
+    if (changes.length) {
+      recordAudit({
+        actor: actor(request), recordType: 'Rotation Batch', recordId: rec.id, recordLabel: rec.name,
+        action: restoring ? 'restore' : patch.archived ? 'archive' : 'update',
+        reason: reason ?? 'Rotation batch updated', changes,
+      });
+    }
+    return HttpResponse.json(rec);
+  }),
+
+  http.put(`${API}/domain-monitoring/batches/:id/members`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'manage:rotation-batches')) return bad(`Your role (${actor(request).role}) cannot manage rotation batches.`, 403);
+    const batch = db.rotationBatches.find((b) => b.id === params.id);
+    if (!batch) return bad('Rotation batch not found.', 404);
+    const body = (await request.json()) as { domainMonitorIds?: unknown };
+    const ids = [...new Set(Array.isArray(body.domainMonitorIds) ? body.domainMonitorIds.map(String) : [])];
+    for (const domainId of ids) {
+      const domain = db.domainMonitors.find((d) => d.id === domainId);
+      if (!domain) return bad(`Domain ${domainId} was not found.`, 400, { field: 'domainMonitorIds' });
+      if (domain.domainType !== 'Invite') return bad('Only Invite Domains can belong to a rotation batch.', 400, { field: 'domainMonitorIds' });
+      if (domain.archived) return bad('An archived domain cannot be added to a rotation batch.', 400, { field: 'domainMonitorIds' });
+    }
+    db.rotationBatchMembers = db.rotationBatchMembers.filter((m) => m.rotationBatchId !== batch.id && !ids.includes(m.domainMonitorId));
+    for (const domainId of ids) {
+      db.rotationBatchMembers.push({ rotationBatchId: batch.id, domainMonitorId: domainId, createdAt: now() });
+    }
+    return HttpResponse.json({
+      rotationBatchId: batch.id,
+      domainMonitorIds: db.rotationBatchMembers.filter((m) => m.rotationBatchId === batch.id).map((m) => m.domainMonitorId),
+    });
+  }),
+
+  /* ── Running a rotation (mirrors server/routes/domain-monitoring/rotation.ts) ── */
+  http.post(`${API}/domain-monitoring/groups/:id/rotate-full`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'execute:full-rotation')) return bad(`Your role (${actor(request).role}) cannot run a full rotation.`, 403);
+    const group = db.rotationGroups.find((g) => g.id === params.id);
+    if (!group) return bad('Rotation group not found.', 404);
+    if (group.archived) return bad('This rotation group is archived.', 400);
+
+    const body = sanitizeFields((await request.json()) as { incomingBatchId?: string; reason?: string }, ROTATION_FIELDS);
+    const reason = body.reason?.trim();
+    if (!reason || reason.length < 10) return bad('A full rotation needs a written reason of at least 10 characters.', 400, { field: 'reason' });
+    const incoming = db.rotationBatches.find((b) => b.id === body.incomingBatchId && b.rotationGroupId === group.id);
+    if (!incoming) return bad('That batch does not belong to this group.', 400, { field: 'incomingBatchId' });
+    if (incoming.archived) return bad('That batch is archived.', 400, { field: 'incomingBatchId' });
+    if (incoming.status === 'Active') return bad('That batch is already Active.', 400, { field: 'incomingBatchId' });
+
+    const outgoing = db.rotationBatches.find((b) => b.rotationGroupId === group.id && b.status === 'Active' && !b.archived);
+    const incomingIds = db.rotationBatchMembers.filter((m) => m.rotationBatchId === incoming.id).map((m) => m.domainMonitorId);
+    if (!incomingIds.length) return bad('That batch has no domains assigned to it.', 400, { field: 'incomingBatchId' });
+    const outgoingIds = outgoing ? db.rotationBatchMembers.filter((m) => m.rotationBatchId === outgoing.id).map((m) => m.domainMonitorId) : [];
+
+    const nowIso = now();
+    const newDue = new Date(Date.now() + group.rotationIntervalDays * 86_400_000).toISOString();
+    if (outgoing) { outgoing.status = 'Standby'; outgoing.updatedAt = nowIso; }
+    incoming.status = 'Active'; incoming.updatedAt = nowIso;
+    for (const id of outgoingIds) { const d = db.domainMonitors.find((x) => x.id === id); if (d) { d.activationStatus = 'Standby'; d.updatedAt = nowIso; } }
+    for (const id of incomingIds) { const d = db.domainMonitors.find((x) => x.id === id); if (d) { d.activationStatus = 'Active'; d.updatedAt = nowIso; } }
+    const previousDueAt = group.nextRotationDueAt;
+    group.cycleStartedAt = nowIso; group.nextRotationDueAt = newDue; group.updatedAt = nowIso;
+
+    const eventId = nextId('RTE', db.rotationEvents, 5);
+    const who = actor(request);
+    db.rotationEvents.unshift({
+      id: eventId, rotationGroupId: group.id, eventType: 'full_rotation',
+      outgoingBatchId: outgoing?.id ?? null, incomingBatchId: incoming.id,
+      previousDueAt, newDueAt: newDue, previousIntervalDays: null, newIntervalDays: null,
+      isOverride: false, reason, performedById: who.id, performedAt: nowIso, createdAt: nowIso,
+    });
+    let position = 0;
+    for (const id of outgoingIds) {
+      db.rotationEventDomainChanges.push({ rotationEventId: eventId, position: position++, domainMonitorId: id, fromBatchId: outgoing!.id, toBatchId: outgoing!.id, fromActivationStatus: 'Active', toActivationStatus: 'Standby' });
+    }
+    for (const id of incomingIds) {
+      db.rotationEventDomainChanges.push({ rotationEventId: eventId, position: position++, domainMonitorId: id, fromBatchId: incoming.id, toBatchId: incoming.id, fromActivationStatus: 'Standby', toActivationStatus: 'Active' });
+    }
+    recordAudit({
+      actor: who, recordType: 'Rotation Event', recordId: group.id, recordLabel: `${group.name}: full rotation to ${incoming.name}`,
+      action: 'rotation', reason, changes: [{ field: 'activeBatch', from: outgoing?.name ?? null, to: incoming.name }],
+    });
+    return HttpResponse.json(group);
+  }),
+
+  http.post(`${API}/domain-monitoring/groups/:id/rotate-partial`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'execute:partial-rotation')) return bad(`Your role (${actor(request).role}) cannot run a partial rotation.`, 403);
+    const group = db.rotationGroups.find((g) => g.id === params.id);
+    if (!group) return bad('Rotation group not found.', 404);
+    if (group.archived) return bad('This rotation group is archived.', 400);
+
+    const body = sanitizeFields((await request.json()) as { moves?: unknown; reason?: string }, ROTATION_FIELDS);
+    const reason = body.reason?.trim();
+    if (!reason || reason.length < 10) return bad('A partial rotation needs a written reason of at least 10 characters.', 400, { field: 'reason' });
+    const moves = Array.isArray(body.moves)
+      ? (body.moves as { domainMonitorId?: unknown; toBatchId?: unknown }[]).filter((m) => typeof m.domainMonitorId === 'string' && typeof m.toBatchId === 'string')
+      : [];
+    if (!moves.length) return bad('Choose at least one domain to move.', 400, { field: 'moves' });
+
+    const groupBatches = db.rotationBatches.filter((b) => b.rotationGroupId === group.id && !b.archived);
+    const batchById = new Map(groupBatches.map((b) => [b.id, b]));
+    const nowIso = now();
+    const changes: { domainMonitorId: string; fromBatchId: string | null; toBatchId: string | null; fromActivationStatus: DomainMonitorRecord['activationStatus']; toActivationStatus: RotationBatchRecord['status'] }[] = [];
+
+    for (const move of moves) {
+      const domainId = String(move.domainMonitorId);
+      const toBatchId = String(move.toBatchId);
+      const toBatch = batchById.get(toBatchId);
+      if (!toBatch) return bad(`Batch ${toBatchId} does not belong to this group.`, 400, { field: 'moves' });
+      const currentMembership = db.rotationBatchMembers.find((m) => m.domainMonitorId === domainId);
+      const fromBatchId = currentMembership?.rotationBatchId ?? null;
+      if (fromBatchId && !batchById.has(fromBatchId)) return bad(`Domain ${domainId} does not belong to this group.`, 400, { field: 'moves' });
+      if (fromBatchId === toBatchId) continue;
+      const domain = db.domainMonitors.find((d) => d.id === domainId);
+      if (!domain) return bad(`Domain ${domainId} was not found.`, 400, { field: 'moves' });
+
+      db.rotationBatchMembers = db.rotationBatchMembers.filter((m) => m.domainMonitorId !== domainId);
+      db.rotationBatchMembers.push({ rotationBatchId: toBatchId, domainMonitorId: domainId, createdAt: nowIso });
+      const fromActivationStatus = domain.activationStatus;
+      domain.activationStatus = toBatch.status;
+      domain.updatedAt = nowIso;
+      changes.push({ domainMonitorId: domainId, fromBatchId, toBatchId, fromActivationStatus, toActivationStatus: toBatch.status });
+    }
+    if (!changes.length) return bad('None of the chosen domains needed to move.', 400, { field: 'moves' });
+
+    const eventId = nextId('RTE', db.rotationEvents, 5);
+    const who = actor(request);
+    db.rotationEvents.unshift({
+      id: eventId, rotationGroupId: group.id, eventType: 'partial_rotation', outgoingBatchId: null, incomingBatchId: null,
+      previousDueAt: null, newDueAt: null, previousIntervalDays: null, newIntervalDays: null,
+      isOverride: false, reason, performedById: who.id, performedAt: nowIso, createdAt: nowIso,
+    });
+    changes.forEach((c, position) => db.rotationEventDomainChanges.push({ rotationEventId: eventId, position, ...c }));
+    recordAudit({
+      actor: who, recordType: 'Rotation Event', recordId: group.id, recordLabel: `${group.name}: partial rotation (${changes.length} domain${changes.length === 1 ? '' : 's'})`,
+      action: 'rotation', reason, changes: changes.map((c) => ({ field: c.domainMonitorId, from: c.fromBatchId, to: c.toBatchId })),
+    });
+    return HttpResponse.json(group);
+  }),
+
+  http.post(`${API}/domain-monitoring/groups/:id/override`, async ({ request, params }) => {
+    await LATENCY();
+    if (!may(request, 'access:domain-monitoring')) return noAccess();
+    if (!may(request, 'override:rotation-schedule')) return bad(`Your role (${actor(request).role}) cannot override the rotation schedule.`, 403);
+    const group = db.rotationGroups.find((g) => g.id === params.id);
+    if (!group) return bad('Rotation group not found.', 404);
+    if (group.archived) return bad('This rotation group is archived.', 400);
+
+    const body = sanitizeFields((await request.json()) as { action?: string; newDueAt?: string; newIntervalDays?: unknown; reason?: string }, ROTATION_FIELDS);
+    const reason = body.reason?.trim();
+    if (!reason || reason.length < 10) return bad('An override needs a written reason of at least 10 characters.', 400, { field: 'reason' });
+
+    const nowIso = now();
+    const previousDueAt = group.nextRotationDueAt;
+    const previousIntervalDays = group.rotationIntervalDays;
+    let eventType: string;
+    let newDueAt: string | null = previousDueAt;
+    let newIntervalDays: number | null = null;
+
+    if (body.action === 'postpone') {
+      if (!body.newDueAt) return bad('Choose a new rotation date.', 400, { field: 'newDueAt' });
+      const d = new Date(body.newDueAt);
+      if (Number.isNaN(d.getTime())) return bad('That date is not valid.', 400, { field: 'newDueAt' });
+      newDueAt = d.toISOString();
+      eventType = 'postpone';
+    } else if (body.action === 'early_complete') {
+      newDueAt = new Date(Date.now() + group.rotationIntervalDays * 86_400_000).toISOString();
+      eventType = 'early_complete';
+      group.cycleStartedAt = nowIso;
+    } else if (body.action === 'change_interval') {
+      const days = Number(body.newIntervalDays);
+      if (!Number.isInteger(days) || days < 1 || days > 90) return bad('Choose a whole number of days between 1 and 90.', 400, { field: 'newIntervalDays' });
+      newIntervalDays = days;
+      newDueAt = group.cycleStartedAt ? new Date(new Date(group.cycleStartedAt).getTime() + days * 86_400_000).toISOString() : previousDueAt;
+      eventType = 'change_interval';
+    } else {
+      return bad('Choose postpone, early_complete or change_interval.', 400, { field: 'action' });
+    }
+
+    group.nextRotationDueAt = newDueAt;
+    if (newIntervalDays !== null) group.rotationIntervalDays = newIntervalDays;
+    group.updatedAt = nowIso;
+
+    const eventId = nextId('RTE', db.rotationEvents, 5);
+    const who = actor(request);
+    db.rotationEvents.unshift({
+      id: eventId, rotationGroupId: group.id, eventType: eventType as RotationEventRecord['eventType'], outgoingBatchId: null, incomingBatchId: null,
+      previousDueAt, newDueAt, previousIntervalDays, newIntervalDays, isOverride: true, reason, performedById: who.id, performedAt: nowIso, createdAt: nowIso,
+    });
+    recordAudit({
+      actor: who, recordType: 'Rotation Event', recordId: group.id, recordLabel: `${group.name}: ${eventType.replace('_', ' ')} override`,
+      action: 'rotation', reason,
+      changes: [
+        { field: 'nextRotationDueAt', from: previousDueAt, to: newDueAt },
+        ...(newIntervalDays !== null ? [{ field: 'rotationIntervalDays', from: previousIntervalDays, to: newIntervalDays }] : []),
+      ],
+    });
+    return HttpResponse.json(group);
   }),
 
   /* ── Pakistan Competitor register ────────────────────────── */

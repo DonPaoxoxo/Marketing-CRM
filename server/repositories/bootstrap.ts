@@ -13,8 +13,9 @@ import { loadProofs, mapProof } from '../routes/agent-proofs';
 import { loadScreenshotsMeta, mapScreenshotMeta } from '../routes/social-media-posts';
 import {
   groupBy, mapAccount, mapAgent, mapAssignment, mapAuditChange, mapAuditEntry, mapBrand,
-  mapCompetitor, mapContentPost, mapCountry, mapCredential, mapDataLead, mapDomain, mapPlatform, mapProject, mapSim,
-  mapSnapshot, mapSocialPost, mapTeamMember,
+  mapCompetitor, mapContentPost, mapCountry, mapCredential, mapDataLead, mapDomain, mapDomainMonitor, mapPlatform,
+  mapProject, mapRotationBatch, mapRotationBatchMember, mapRotationEvent, mapRotationEventDomainChange,
+  mapRotationGroup, mapSim, mapSnapshot, mapSocialPost, mapTeamMember,
 } from './mappers';
 
 /** How much history the workspace carries in one payload. The audit trail grows
@@ -30,7 +31,8 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     simRows, agentRows, agentBrandRows, agentProjectRows, agentChannelRows, agentPostLinkRows,
     accountRows, accountSimRows, credentialRows, assignmentRows, domainRows,
     snapshotRows, postRows, auditRows, auditChangeRows, proofRows, competitorRows, socialPostRows, screenshotMetaRows,
-    dataLeadRows,
+    dataLeadRows, domainMonitorRows, rotationGroupRows, rotationBatchRows, rotationBatchMemberRows,
+    rotationEventRows, rotationEventDomainChangeRows,
   ] = await Promise.all([
     query<RowDataPacket>('SELECT * FROM countries ORDER BY name'),
     query<RowDataPacket>('SELECT * FROM platforms ORDER BY name'),
@@ -69,6 +71,17 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     // Metadata only; the image itself is fetched on its own when shown.
     loadScreenshotsMeta(),
     query<RowDataPacket>('SELECT * FROM data_leads ORDER BY created_at DESC, id DESC'),
+    query<RowDataPacket>('SELECT * FROM domain_monitors ORDER BY created_at DESC, id DESC'),
+    query<RowDataPacket>('SELECT * FROM rotation_groups ORDER BY name'),
+    query<RowDataPacket>('SELECT * FROM rotation_batches ORDER BY rotation_group_id, name'),
+    query<RowDataPacket>('SELECT * FROM rotation_batch_members'),
+    query<RowDataPacket>('SELECT * FROM rotation_events ORDER BY performed_at DESC, id DESC'),
+    query<RowDataPacket>(
+      `SELECT c.* FROM rotation_event_domain_changes c
+         JOIN (SELECT id FROM rotation_events ORDER BY performed_at DESC, id DESC) recent
+           ON recent.id = c.rotation_event_id
+        ORDER BY c.rotation_event_id, c.position`,
+    ),
   ]);
 
   const brandCountries = groupBy(brandCountryRows, 'brand_id');
@@ -107,6 +120,12 @@ export async function loadBootstrap(holder: PermissionHolder): Promise<Bootstrap
     socialMediaPosts: socialPostRows.map(mapSocialPost),
     socialPostScreenshots: screenshotMetaRows.map(mapScreenshotMeta),
     dataLeads: dataLeadRows.map(mapDataLead),
+    domainMonitors: domainMonitorRows.map(mapDomainMonitor),
+    rotationGroups: rotationGroupRows.map(mapRotationGroup),
+    rotationBatches: rotationBatchRows.map(mapRotationBatch),
+    rotationBatchMembers: rotationBatchMemberRows.map(mapRotationBatchMember),
+    rotationEvents: rotationEventRows.map(mapRotationEvent),
+    rotationEventDomainChanges: rotationEventDomainChangeRows.map(mapRotationEventDomainChange),
     auditEntries: auditRows.map((r) =>
       mapAuditEntry(r, (auditChanges.get(String(r.id)) ?? []).map(mapAuditChange)),
     ),

@@ -14,8 +14,10 @@
  *  the test suite. */
 
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DataLeadRecord,
-  DomainRecord, FollowerSnapshot, Platform, Project, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef,
+  DataLeadRecord, DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project,
+  RotationBatchMember, RotationBatchRecord, RotationEventDomainChange, RotationEventRecord, RotationGroupRecord, Sim,
+  SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '../lib/types';
 
 /* ── Configuration ────────────────────────────────────────────── */
@@ -56,4 +58,11 @@ export const pakistanCompetitors: CompetitorRecord[] = [];
 export const socialMediaPosts: SocialMediaPost[] = [];
 export const socialPostScreenshots: SocialPostScreenshot[] = [];
 export const dataLeads: DataLeadRecord[] = [];
+export const domainMonitors: DomainMonitorRecord[] = [];
+export const domainCheckLogs: DomainCheckLogEntry[] = [];
+export const rotationGroups: RotationGroupRecord[] = [];
+export const rotationBatches: RotationBatchRecord[] = [];
+export const rotationBatchMembers: RotationBatchMember[] = [];
+export const rotationEvents: RotationEventRecord[] = [];
+export const rotationEventDomainChanges: RotationEventDomainChange[] = [];
 export const auditEntries: AuditEntry[] = [];

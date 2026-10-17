@@ -35,12 +35,24 @@ export const ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     'request:credential-access',
     'archive:records',
     'access:data-leads',
+    'access:domain-monitoring',
+    'record:domain-checks',
+    'manage:rotation-batches',
+    'execute:full-rotation',
+    'execute:partial-rotation',
+    'override:rotation-schedule',
   ],
   // Staff can add SIMs, accounts and agents one at a time, so importing them in
   // bulk gives no new reach. Exporting would, and stays with managers. Archiving
   // was added at the owner's request (2026-09-14); the agent edit lock still limits
-  // it to the agents a person manages.
-  'Marketing Staff': ['view:contact-details', 'edit:resources', 'import:records', 'request:credential-access', 'archive:records', 'access:data-leads'],
+  // it to the agents a person manages. Daily domain checks are Staff's day-to-day
+  // task; which domains are live (rotation batches, full/partial rotation,
+  // schedule overrides) stays with managers by default — a higher-stakes action
+  // than logging whether a domain loaded today.
+  'Marketing Staff': [
+    'view:contact-details', 'edit:resources', 'import:records', 'request:credential-access', 'archive:records',
+    'access:data-leads', 'access:domain-monitoring', 'record:domain-checks',
+  ],
   'Read-only Reviewer': [],
 };
 
@@ -59,6 +71,12 @@ export const PERMISSION_LABELS: Record<Permission, string> = {
   'access:credential-refs': 'Open Credential Refs',
   'access:roles-audit': 'Open Roles & Audit',
   'access:data-leads': 'Open Data Leads',
+  'access:domain-monitoring': 'Open Domain Monitoring & Rotation',
+  'record:domain-checks': 'Log daily domain accessibility checks',
+  'manage:rotation-batches': 'Create and edit rotation groups and batches',
+  'execute:full-rotation': 'Confirm a full batch rotation',
+  'execute:partial-rotation': 'Confirm a partial (individual-domain) rotation',
+  'override:rotation-schedule': 'Postpone, early-complete or otherwise override a rotation schedule',
 };
 
 export const ROLE_DESCRIPTIONS: Record<RoleName, string> = {

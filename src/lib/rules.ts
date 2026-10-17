@@ -3,7 +3,7 @@
  *  tables they drill into can never disagree. */
 
 import type { Agent, Assignment, ContentPost, DomainRecord, ResourceType, Sim, SocialAccount } from './types';
-import { daysSince, daysUntil } from './utils';
+import { daysSince, daysUntil, hoursUntil } from './utils';
 import { pageUrlKey, phoneKey, postUrlKey } from './identity';
 
 /* ── Configurable thresholds ──────────────────────────────────── */
@@ -17,6 +17,8 @@ export interface Thresholds {
   followUpWindowDays: number;
   /** A single SIM linked to more than this many accounts is flagged for review. */
   simFanOutReviewThreshold: number;
+  /** A rotation group's next_rotation_due_at within this many hours counts as "Due Soon". */
+  rotationDueSoonWindowHours: number;
 }
 
 export const DEFAULT_THRESHOLDS: Thresholds = {
@@ -24,6 +26,7 @@ export const DEFAULT_THRESHOLDS: Thresholds = {
   simRenewalWindowDays: 30,
   followUpWindowDays: 14,
   simFanOutReviewThreshold: 3,
+  rotationDueSoonWindowHours: 24,
 };
 
 /* ── Reserve readiness ────────────────────────────────────────── */
@@ -289,4 +292,25 @@ export const DOMAIN_EXPIRY_LABELS: Record<DomainExpiryBucket, string> = {
   'expiring-7': 'Expiring within 7 days',
   'expiring-30': 'Expiring within 30 days',
   healthy: 'Not due soon',
+};
+
+/* ── Rotation schedule ────────────────────────────────────────── */
+
+export type RotationScheduleBucket = 'on-schedule' | 'due-soon' | 'overdue';
+
+/** No grace window: the instant next_rotation_due_at passes, the group is
+ *  Overdue — "Due Now" has no observable width without one, so it is not a
+ *  separate bucket. A group with no due date yet (no rotation has run) reads
+ *  as on-schedule — there is nothing to be overdue against. */
+export function rotationScheduleBucket(nextRotationDueAt: string | null, t: Thresholds = DEFAULT_THRESHOLDS): RotationScheduleBucket {
+  if (!nextRotationDueAt) return 'on-schedule';
+  const h = hoursUntil(nextRotationDueAt)!;
+  if (h <= 0) return 'overdue';
+  return h <= t.rotationDueSoonWindowHours ? 'due-soon' : 'on-schedule';
+}
+
+export const ROTATION_SCHEDULE_LABELS: Record<RotationScheduleBucket, string> = {
+  'on-schedule': 'On Schedule',
+  'due-soon': 'Due Soon',
+  overdue: 'Overdue',
 };

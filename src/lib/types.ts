@@ -303,6 +303,128 @@ export interface DataLeadRecord {
   updatedAt: string;
 }
 
+/* ── Domain Monitoring & Rotation ─────────────────────────────────
+ *  A manual-operation-only monitoring layer for a different pool of domains
+ *  than the Domains register above (DomainRecord): daily accessibility
+ *  checks, and for Invite Domains, membership in a 5-day rotation cycle
+ *  across named batches. The app calculates dates and reminders; a person
+ *  always performs the check, the add and the rotation confirm. */
+
+export const DOMAIN_MONITOR_TYPE = ['Free Cash', 'Invite'] as const;
+export type DomainMonitorType = (typeof DOMAIN_MONITOR_TYPE)[number];
+
+export const DOMAIN_ACCESSIBILITY_STATUS = ['Accessible', 'Inaccessible', 'Intermittent', 'Not Checked'] as const;
+export type DomainAccessibilityStatus = (typeof DOMAIN_ACCESSIBILITY_STATUS)[number];
+
+/** Invite Domains only; null for Free Cash. Active/Standby change only
+ *  through a rotation or override — never a plain edit (see server validation). */
+export const DOMAIN_ACTIVATION_STATUS = ['Active', 'Standby', 'Disabled', 'Archived'] as const;
+export type DomainActivationStatus = (typeof DOMAIN_ACTIVATION_STATUS)[number];
+
+export interface DomainMonitorRecord {
+  id: ID;                       // DMN-0001
+  domainType: DomainMonitorType;
+  domainName: string;           // normalised, unique within this register
+  activationStatus: DomainActivationStatus | null;   // Invite only
+  lastAccessibilityStatus: DomainAccessibilityStatus;
+  /** Denormalised cache of the latest domain_check_logs row. Never the source
+   *  of "Pending Today" — that is computed by comparing this against today. */
+  lastCheckedDate: string | null;
+  lastCheckedById: ID | null;
+  notes: string;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** One day's manual accessibility check for one domain. Unique per
+ *  (domainMonitorId, checkDate) — resubmitting the same day updates the row,
+ *  it never creates a second one. */
+export interface DomainCheckLogEntry {
+  id: ID;                       // DCL-000001
+  domainMonitorId: ID;
+  checkDate: string;            // YYYY-MM-DD, the operational day this check covers
+  accessibilityStatus: DomainAccessibilityStatus;
+  checkedById: ID | null;
+  notes: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export const ROTATION_BATCH_STATUS = ['Active', 'Standby'] as const;
+export type RotationBatchStatus = (typeof ROTATION_BATCH_STATUS)[number];
+
+/** A named rotation schedule. Exactly one of its batches is Active at a time;
+ *  every domain in that batch is Active simultaneously. */
+export interface RotationGroupRecord {
+  id: ID;                       // RTG-0001
+  name: string;
+  notes: string;
+  rotationIntervalDays: number; // default 5; changeable via a schedule override
+  cycleStartedAt: string | null;
+  /** Server-authoritative; set only by a rotation or override. Null until the
+   *  group's first rotation. */
+  nextRotationDueAt: string | null;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface RotationBatchRecord {
+  id: ID;                       // RTB-0001
+  rotationGroupId: ID;
+  name: string;
+  status: RotationBatchStatus;
+  archived: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+/** A domain's membership in a batch. A domain belongs to at most one batch,
+ *  system-wide. */
+export interface RotationBatchMember {
+  rotationBatchId: ID;
+  domainMonitorId: ID;
+  createdAt: string;
+}
+
+export const ROTATION_EVENT_TYPE = [
+  'full_rotation', 'partial_rotation', 'postpone', 'early_complete', 'change_incoming_batch', 'change_interval',
+] as const;
+export type RotationEventType = (typeof ROTATION_EVENT_TYPE)[number];
+
+/** One rotation-related action: a full or partial rotation, or a schedule
+ *  override. `isOverride` is true for the four override types and false for
+ *  the two rotation types. */
+export interface RotationEventRecord {
+  id: ID;                       // RTE-00001
+  rotationGroupId: ID;
+  eventType: RotationEventType;
+  outgoingBatchId: ID | null;
+  incomingBatchId: ID | null;
+  previousDueAt: string | null;
+  newDueAt: string | null;
+  previousIntervalDays: number | null;
+  newIntervalDays: number | null;
+  isOverride: boolean;
+  reason: string;
+  performedById: ID;
+  performedAt: string;
+  createdAt: string;
+}
+
+/** One domain's before/after within a rotation event — the child rows that
+ *  make a full rotation's "4 domains changing to Standby" auditable per domain. */
+export interface RotationEventDomainChange {
+  rotationEventId: ID;
+  position: number;
+  domainMonitorId: ID;
+  fromBatchId: ID | null;
+  toBatchId: ID | null;
+  fromActivationStatus: DomainActivationStatus | null;
+  toActivationStatus: DomainActivationStatus | null;
+}
+
 export const SOCIAL_POST_PURPOSE = ['Daily Posting', 'Event', 'Others'] as const;
 export type SocialPostPurpose = (typeof SOCIAL_POST_PURPOSE)[number];
 
@@ -419,6 +541,18 @@ export const PERMISSIONS = [
   'access:roles-audit',
   /** Open Data Leads (scraped creator-outreach lists) and bulk-upload them. */
   'access:data-leads',
+  /** Open Domain Monitoring & Rotation. */
+  'access:domain-monitoring',
+  /** Log a daily accessibility check without needing edit:resources. */
+  'record:domain-checks',
+  /** Create, edit and reassign rotation groups and batches. */
+  'manage:rotation-batches',
+  /** Confirm a full batch rotation. */
+  'execute:full-rotation',
+  /** Confirm a partial (individual-domain) rotation. */
+  'execute:partial-rotation',
+  /** Postpone, early-complete, or otherwise override a rotation's schedule. */
+  'override:rotation-schedule',
 ] as const;
 export type Permission = (typeof PERMISSIONS)[number];
 
@@ -484,6 +618,12 @@ export interface Bootstrap {
   socialMediaPosts: SocialMediaPost[];
   socialPostScreenshots: SocialPostScreenshot[];
   dataLeads: DataLeadRecord[];
+  domainMonitors: DomainMonitorRecord[];
+  rotationGroups: RotationGroupRecord[];
+  rotationBatches: RotationBatchRecord[];
+  rotationBatchMembers: RotationBatchMember[];
+  rotationEvents: RotationEventRecord[];
+  rotationEventDomainChanges: RotationEventDomainChange[];
   auditEntries: AuditEntry[];
 }
 

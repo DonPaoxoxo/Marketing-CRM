@@ -194,6 +194,41 @@ export const DATA_LEAD_COLUMNS: ColumnMap = {
   notes: 'notes',
 };
 
+export const DOMAIN_MONITOR_COLUMNS: ColumnMap = {
+  domainType: 'domain_type',
+  domainName: 'domain_name',
+  activationStatus: nullable('activation_status'),
+  lastAccessibilityStatus: 'last_accessibility_status',
+  lastCheckedDate: nullable('last_checked_date'),
+  lastCheckedById: nullable('last_checked_by_id'),
+  notes: 'notes',
+  archived: 'archived',
+};
+
+export const DOMAIN_CHECK_LOG_COLUMNS: ColumnMap = {
+  domainMonitorId: 'domain_monitor_id',
+  checkDate: 'check_date',
+  accessibilityStatus: 'accessibility_status',
+  checkedById: nullable('checked_by_id'),
+  notes: 'notes',
+};
+
+export const ROTATION_GROUP_COLUMNS: ColumnMap = {
+  name: 'name',
+  notes: 'notes',
+  rotationIntervalDays: 'rotation_interval_days',
+  cycleStartedAt: nullable('cycle_started_at'),
+  nextRotationDueAt: nullable('next_rotation_due_at'),
+  archived: 'archived',
+};
+
+export const ROTATION_BATCH_COLUMNS: ColumnMap = {
+  rotationGroupId: 'rotation_group_id',
+  name: 'name',
+  status: 'status',
+  archived: 'archived',
+};
+
 export const SOCIAL_POST_COLUMNS: ColumnMap = {
   marketingMemberId: 'marketing_member_id',
   purpose: 'purpose',

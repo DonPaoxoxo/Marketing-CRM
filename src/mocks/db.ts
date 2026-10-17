@@ -6,9 +6,10 @@
 import * as seed from './seed';
 import * as fixtures from './fixtures';
 import type {
-  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef, DataLeadRecord,
-  DomainRecord, FollowerSnapshot, Platform, Project, RoleName, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot,
-  TeamMember,
+  Agent, AgentProof, Assignment, AuditEntry, Brand, CompetitorRecord, ContentPost, Country, CredentialRef,
+  DataLeadRecord, DomainCheckLogEntry, DomainMonitorRecord, DomainRecord, FollowerSnapshot, Platform, Project,
+  RoleName, RotationBatchMember, RotationBatchRecord, RotationEventDomainChange, RotationEventRecord,
+  RotationGroupRecord, Sim, SocialAccount, SocialMediaPost, SocialPostScreenshot, TeamMember,
 } from '@/lib/types';
 
 export interface Database {
@@ -30,6 +31,15 @@ export interface Database {
   socialMediaPosts: SocialMediaPost[];
   socialPostScreenshots: SocialPostScreenshot[];
   dataLeads: DataLeadRecord[];
+  domainMonitors: DomainMonitorRecord[];
+  /** Not part of Bootstrap (unbounded growth, one row per domain per day) — kept
+   *  here only so the mock's check-log endpoints have somewhere to write to. */
+  domainCheckLogs: DomainCheckLogEntry[];
+  rotationGroups: RotationGroupRecord[];
+  rotationBatches: RotationBatchRecord[];
+  rotationBatchMembers: RotationBatchMember[];
+  rotationEvents: RotationEventRecord[];
+  rotationEventDomainChanges: RotationEventDomainChange[];
   /** Proof images by proof id, as data: URLs. Memory only. */
   proofImages: Record<string, { mime: string; base64: string }>;
   /** Post screenshots by post id, as data: URLs. Memory only — mirrors proofImages. */
@@ -61,6 +71,13 @@ function snapshotOf(source: typeof seed | typeof fixtures): Database {
     socialMediaPosts: source.socialMediaPosts,
     socialPostScreenshots: source.socialPostScreenshots,
     dataLeads: source.dataLeads,
+    domainMonitors: source.domainMonitors,
+    domainCheckLogs: source.domainCheckLogs,
+    rotationGroups: source.rotationGroups,
+    rotationBatches: source.rotationBatches,
+    rotationBatchMembers: source.rotationBatchMembers,
+    rotationEvents: source.rotationEvents,
+    rotationEventDomainChanges: source.rotationEventDomainChanges,
     proofImages: {},
     screenshotImages: {},
     auditEntries: source.auditEntries,

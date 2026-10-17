@@ -10,7 +10,8 @@ import { execute, queryOne } from './pool';
 
 export type IdPrefix =
   | 'TM' | 'SIM' | 'AGT' | 'ACC' | 'CRD' | 'ASG' | 'DOM' | 'FSN' | 'CNT' | 'AUD' | 'BRD' | 'PRJ' | 'PRF' | 'RPT' | 'RPF' | 'RPR' | 'ADC' | 'ADR' | 'ADK' | 'ADF' | 'ADI' | 'ADU'
-  | 'SCT' | 'SPL' | 'SPV' | 'SPA' | 'SPC' | 'SPD' | 'SPDV' | 'NTF' | 'AIR' | 'CMP' | 'SMP' | 'LED';
+  | 'SCT' | 'SPL' | 'SPV' | 'SPA' | 'SPC' | 'SPD' | 'SPDV' | 'NTF' | 'AIR' | 'CMP' | 'SMP' | 'LED'
+  | 'DMN' | 'DCL' | 'RTG' | 'RTB' | 'RTE';
 
 /** Reserve the next id for a prefix.
  *

@@ -60,8 +60,10 @@ describe('Domain Monitoring dashboard', () => {
     await screen.findByText('freecash-alpha.com');
     // 4 live Free Cash + 5 live Invite = 9 (one Free Cash domain is seeded archived).
     expect(kpiValue('Total Domains')).toBe('9');
+    // All 4 live Free Cash domains default to Enabled.
+    expect(kpiValue('Enabled Free Cash Domains')).toBe('4/4');
     // invite-echo.com is seeded Disabled; the other 4 Invite domains default to Enabled.
-    expect(kpiValue('Enabled Invite Domains')).toBe('4');
+    expect(kpiValue('Enabled Invite Domains')).toBe('4/5');
   });
 
   it('lists Free Cash Domains and filters by accessibility', async () => {

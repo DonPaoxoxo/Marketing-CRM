@@ -16,7 +16,10 @@ export default function DomainMonitoringPage() {
   const accessible = live.filter((d) => d.lastAccessibilityStatus === 'Accessible').length;
   const inaccessible = live.filter((d) => d.lastAccessibilityStatus === 'Inaccessible').length;
   const pendingToday = live.filter((d) => dailyCheckBucket(d.lastCheckedDate) !== 'checked-today').length;
-  const enabledInvite = live.filter((d) => d.domainType === 'Invite' && d.enabled).length;
+  const freeCash = live.filter((d) => d.domainType === 'Free Cash');
+  const invite = live.filter((d) => d.domainType === 'Invite');
+  const enabledFreeCash = freeCash.filter((d) => d.enabled).length;
+  const enabledInvite = invite.filter((d) => d.enabled).length;
   const tomorrow = toISODate(addDays(new Date(), 1));
   const dueTomorrow = live.filter((d) => d.nextRotationDate === tomorrow).length;
 
@@ -32,7 +35,8 @@ export default function DomainMonitoringPage() {
         <KpiCard label="Accessible Domains" value={accessible} tone="success" loading={isLoading} />
         <KpiCard label="Pending Daily Checks" value={pendingToday} tone="warning" loading={isLoading} />
         <KpiCard label="Inaccessible Domains" value={inaccessible} tone="danger" loading={isLoading} />
-        <KpiCard label="Enabled Invite Domains" value={enabledInvite} tone="info" loading={isLoading} />
+        <KpiCard label="Enabled Free Cash Domains" value={`${enabledFreeCash}/${freeCash.length}`} tone="info" loading={isLoading} />
+        <KpiCard label="Enabled Invite Domains" value={`${enabledInvite}/${invite.length}`} tone="info" loading={isLoading} />
         <KpiCard label="Rotation Due Tomorrow" value={dueTomorrow} tone={dueTomorrow > 0 ? 'warning' : undefined} hint="Next Rotation Date is tomorrow." loading={isLoading} />
       </KpiGrid>
 
